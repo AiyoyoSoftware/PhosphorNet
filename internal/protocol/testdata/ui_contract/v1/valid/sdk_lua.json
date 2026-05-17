@@ -1,0 +1,37 @@
+{
+  "component": "screen",
+  "children": [
+    { "component": "header", "text": "LUA SDK" },
+    {
+      "component": "panel",
+      "title": "Helpers",
+      "children": [
+        { "component": "text", "text": "ui.text output" },
+        { "component": "markdown", "text": "**ui.markdown** output" },
+        {
+          "component": "menu",
+          "id": "lua-menu",
+          "items": [
+            { "label": "Record Visit", "action": "record_visit" }
+          ]
+        },
+        { "component": "input", "id": "lua-input", "placeholder": "name", "value": "Ada" },
+        { "component": "textarea", "id": "lua-textarea", "placeholder": "note", "value": "hello" },
+        { "component": "button", "id": "lua-button", "text": "Save", "action": "save" },
+        { "component": "checkbox", "id": "lua-checkbox", "text": "Enabled", "checked": false, "action": "toggle" },
+        {
+          "component": "grid",
+          "id": "lua-grid",
+          "rows": [["x", "o"], ["o", "x"]]
+        }
+      ]
+    },
+    {
+      "component": "log",
+      "id": "lua-log",
+      "children": [
+        { "component": "status", "text": "Lua helper corpus row" }
+      ]
+    }
+  ]
+}

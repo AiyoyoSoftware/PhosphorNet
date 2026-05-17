@@ -1,0 +1,9 @@
+{
+  "component": "screen",
+  "children": [
+    {
+      "component": "input",
+      "placeholder": "missing id"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN bio TEXT;
+ALTER TABLE users ADD COLUMN status_line TEXT;

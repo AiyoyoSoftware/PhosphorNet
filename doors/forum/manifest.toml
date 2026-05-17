@@ -1,0 +1,48 @@
+id = "forum"
+name = "Forum"
+entry = "app.lua"
+runtime = "lua"
+
+capabilities = [
+  "state:user:read",
+  "state:user:write",
+  "state:room:read",
+  "state:room:write",
+  "notify:self",
+  "transition:open_door",
+]
+
+[settings.welcome_thread_title]
+type = "string"
+label = "Welcome thread title"
+default = "Welcome to PhosphorNet"
+
+[settings.welcome_thread_body]
+type = "markdown"
+label = "Welcome thread body"
+default = """## Rules / vibe / how to use this station
+
+- Be kind and keep the place readable.
+- Post in markdown when you want a longer thought to land well.
+- Chat is for fast back-and-forth. The forum is for slower, lasting conversations.
+
+## What are doors?
+
+Doors are hosted experiences inside a station. They can be chats, boards, tools, or little places with a clear purpose.
+
+If you are new here, read the thread list and then jump into chat."""
+
+[settings.allow_posts_during_maintenance]
+type = "bool"
+label = "Allow posting during station maintenance"
+default = false
+
+[settings.show_activity_sequence]
+type = "bool"
+label = "Show activity sequence on threads"
+default = true
+
+[settings.empty_thread_action]
+type = "string"
+label = "Empty thread list action"
+default = "No threads yet."

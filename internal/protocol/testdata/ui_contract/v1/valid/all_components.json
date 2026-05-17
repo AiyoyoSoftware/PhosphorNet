@@ -1,0 +1,111 @@
+{
+  "component": "screen",
+  "scroll": "bottom",
+  "capture_keys": true,
+  "style": {
+    "background": {
+      "kind": "gradient",
+      "direction": "diagonal",
+      "from": "#0b1020",
+      "to": "#2f5d62",
+      "stops": [
+        { "at": 0, "color": "#0b1020" },
+        { "at": 1, "color": "#2f5d62" }
+      ]
+    }
+  },
+  "children": [
+    { "component": "header", "text": "CONTRACT LAB" },
+    { "component": "text", "text": "Plain remote text stays plain." },
+    { "component": "markdown", "text": "# Markdown\n\nRendered locally by the trusted client." },
+    { "component": "status", "text": "Ready." },
+    {
+      "component": "panel",
+      "title": "Controls",
+      "style": {
+        "background": {
+          "kind": "solid",
+          "color": "#1b1d21"
+        }
+      },
+      "children": [
+        {
+          "component": "menu",
+          "id": "main-menu",
+          "items": [
+            { "label": "Open Chat", "action": "open_door:chat" },
+            { "label": "Open Forum", "action": "open_door:forum" }
+          ]
+        },
+        {
+          "component": "list",
+          "id": "topic-list",
+          "items": [
+            { "label": "Announcements", "action": "topic:announcements" },
+            { "label": "General", "action": "topic:general" }
+          ]
+        },
+        {
+          "component": "dynamic_list",
+          "id": "door-order-list",
+          "items": [
+            { "label": "01. Lobby", "action": "select_door_order:lobby" },
+            { "label": "02. Chat", "action": "select_door_order:chat" }
+          ]
+        },
+        {
+          "component": "input",
+          "id": "display-name",
+          "placeholder": "display name",
+          "value": "Ada",
+          "dock": "bottom"
+        },
+        {
+          "component": "textarea",
+          "id": "bio",
+          "placeholder": "bio",
+          "value": "Line one\nLine two",
+          "dock": "bottom"
+        },
+        {
+          "component": "button",
+          "id": "save-profile",
+          "text": "Save Profile",
+          "action": "save_profile"
+        },
+        {
+          "component": "checkbox",
+          "id": "door-enabled-chat",
+          "text": "Chat enabled",
+          "checked": true,
+          "action": "toggle_door_enabled:chat"
+        }
+      ]
+    },
+    {
+      "component": "log",
+      "id": "station-log",
+      "style": {
+        "background": {
+          "kind": "gradient",
+          "direction": "vertical",
+          "from": "#111827",
+          "to": "#312e81"
+        }
+      },
+      "children": [
+        { "component": "text", "text": "[00:00] connected" },
+        { "component": "text", "text": "[00:01] rendered" }
+      ]
+    },
+    {
+      "component": "grid",
+      "id": "strategy-board",
+      "rows": [
+        ["A1", "A2", "A3"],
+        ["B1", "B2", "B3"],
+        ["C1", "C2", "C3"]
+      ]
+    }
+  ]
+}

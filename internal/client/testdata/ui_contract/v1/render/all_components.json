@@ -1,0 +1,72 @@
+{
+  "width": 80,
+  "viewport_height": 12,
+  "focused_index": 0,
+  "view": {
+    "component": "screen",
+    "children": [
+      { "component": "header", "text": "RENDER CONTRACT" },
+      {
+        "component": "panel",
+        "title": "Inputs",
+        "children": [
+          { "component": "input", "id": "name", "placeholder": "display name", "value": "Ada" },
+          { "component": "textarea", "id": "note", "placeholder": "note", "value": "hello" },
+          { "component": "button", "id": "save", "text": "Save", "action": "save" },
+          { "component": "checkbox", "id": "enabled", "text": "Enabled", "checked": true, "action": "toggle" }
+        ]
+      },
+      {
+        "component": "menu",
+        "id": "actions",
+        "items": [
+          { "label": "Ping", "action": "ping" }
+        ]
+      },
+      {
+        "component": "dynamic_list",
+        "id": "rows",
+        "items": [
+          { "label": "First", "action": "first" },
+          { "label": "Second", "action": "second" }
+        ]
+      },
+      {
+        "component": "grid",
+        "id": "board",
+        "rows": [["A", "B"], ["C", "D"]]
+      },
+      {
+        "component": "log",
+        "id": "log",
+        "children": [
+          { "component": "text", "text": "log row" }
+        ]
+      },
+      { "component": "markdown", "text": "# Local Markdown" },
+      { "component": "status", "text": "Ready." }
+    ]
+  },
+  "contains": [
+    "RENDER CONTRACT",
+    "Inputs",
+    "Ada",
+    "[ Save ]",
+    "[x] Enabled",
+    "Ping",
+    "First",
+    "A  B",
+    "log row",
+    "Local Markdown",
+    "Ready."
+  ],
+  "focusables": [
+    { "kind": "input", "id": "name" },
+    { "kind": "textarea", "id": "note" },
+    { "kind": "button", "id": "save", "action": "save" },
+    { "kind": "checkbox", "id": "enabled", "action": "toggle" },
+    { "kind": "menu", "id": "actions" },
+    { "kind": "button", "id": "rows", "action": "first" },
+    { "kind": "button", "id": "rows", "action": "second" }
+  ]
+}

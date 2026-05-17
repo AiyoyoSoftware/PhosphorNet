@@ -1,0 +1,31 @@
+# Local Codex and agent metadata
+.codex/
+.agents/
+
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.hatch-pet-venv/
+
+# Go build and test artifacts
+.gocache/
+bin/
+dist/
+*.test
+coverage.out
+
+# Local runtime data
+node.toml
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Generated project output
+output/
+
+# OS/editor noise
+.DS_Store

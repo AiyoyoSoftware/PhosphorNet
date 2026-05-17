@@ -1,0 +1,32 @@
+{
+  "component": "screen",
+  "scroll": "bottom",
+  "children": [
+    { "component": "header", "text": "PYTHON SDK" },
+    {
+      "component": "log",
+      "id": "python-log",
+      "children": [
+        { "component": "text", "text": "<ada> hello" },
+        { "component": "markdown", "text": "**ui.markdown** output" }
+      ]
+    },
+    { "component": "input", "id": "chat-message", "placeholder": "/msg #station", "dock": "bottom" },
+    {
+      "component": "panel",
+      "title": "Actions",
+      "children": [
+        {
+          "component": "dynamic_list",
+          "id": "python-dynamic-list",
+          "items": [
+            { "label": "One", "action": "one" },
+            { "label": "Two", "action": "two" }
+          ]
+        },
+        { "component": "checkbox", "id": "python-checkbox", "text": "Enabled", "checked": true, "action": "toggle" },
+        { "component": "button", "id": "python-button", "text": "Submit", "action": "submit" }
+      ]
+    }
+  ]
+}

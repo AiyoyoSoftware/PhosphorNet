@@ -1,0 +1,25 @@
+id = "lobby"
+name = "Lobby"
+entry = "app.lua"
+
+capabilities = [
+  "state:user:read",
+  "state:user:write",
+  "notify:room",
+  "transition:open_door",
+]
+
+[settings.motd]
+type = "textarea"
+label = "Message of the day"
+default = "Public alpha node. Be nice. Things may break."
+
+[settings.show_online_users]
+type = "bool"
+label = "Show online users"
+default = true
+
+[settings.theme_tagline]
+type = "string"
+label = "Station tagline"
+default = "terminal-native public square"

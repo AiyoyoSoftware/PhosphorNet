@@ -1,0 +1,44 @@
+id = "chat"
+name = "Chat"
+entry = "app.lua"
+runtime = "lua"
+
+capabilities = [
+  "state:user:read",
+  "state:user:write",
+  "state:room:read",
+  "state:room:write",
+  "broadcast:room",
+  "notify:room",
+  "notify:user",
+]
+
+[settings.room_title]
+type = "string"
+label = "Room title"
+default = "#station"
+
+[settings.topic]
+type = "string"
+label = "Room topic"
+default = "phosphornet room"
+
+[settings.max_messages]
+type = "int"
+label = "Backlog message limit"
+default = 250
+
+[settings.show_presence]
+type = "bool"
+label = "Show room presence"
+default = true
+
+[settings.join_leave_events]
+type = "bool"
+label = "Record join/leave events"
+default = true
+
+[settings.input_placeholder]
+type = "string"
+label = "Message input placeholder"
+default = "/msg #station"

@@ -1,0 +1,19 @@
+{
+  "component": "screen",
+  "children": [
+    { "component": "header" },
+    { "component": "text" },
+    { "component": "markdown" },
+    { "component": "status" },
+    { "component": "panel" },
+    { "component": "menu", "id": "empty-menu" },
+    { "component": "list", "id": "empty-list" },
+    { "component": "dynamic_list", "id": "empty-dynamic-list" },
+    { "component": "input", "id": "empty-input" },
+    { "component": "textarea", "id": "empty-textarea" },
+    { "component": "button", "id": "empty-button" },
+    { "component": "checkbox", "id": "empty-checkbox" },
+    { "component": "log", "id": "empty-log" },
+    { "component": "grid", "id": "empty-grid" }
+  ]
+}

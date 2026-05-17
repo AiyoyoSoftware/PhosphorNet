@@ -1,0 +1,12 @@
+{
+  "component": "screen",
+  "style": {
+    "background": {
+      "kind": "gradient",
+      "direction": "radial",
+      "from": "#000000",
+      "to": "#ffffff"
+    }
+  },
+  "children": []
+}

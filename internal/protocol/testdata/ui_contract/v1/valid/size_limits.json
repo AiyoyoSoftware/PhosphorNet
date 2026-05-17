@@ -1,0 +1,46 @@
+{
+  "component": "screen",
+  "style": {
+    "background": {
+      "kind": "gradient",
+      "direction": "horizontal",
+      "stops": [
+        { "at": 0, "color": "#000000" },
+        { "at": 0.14, "color": "#111111" },
+        { "at": 0.28, "color": "#222222" },
+        { "at": 0.42, "color": "#333333" },
+        { "at": 0.56, "color": "#444444" },
+        { "at": 0.70, "color": "#555555" },
+        { "at": 0.84, "color": "#666666" },
+        { "at": 1, "color": "#777777" }
+      ]
+    }
+  },
+  "children": [
+    {
+      "component": "menu",
+      "id": "max-menu-sample",
+      "items": [
+        { "label": "Item 01", "action": "item:01" },
+        { "label": "Item 02", "action": "item:02" },
+        { "label": "Item 03", "action": "item:03" },
+        { "label": "Item 04", "action": "item:04" },
+        { "label": "Item 05", "action": "item:05" },
+        { "label": "Item 06", "action": "item:06" },
+        { "label": "Item 07", "action": "item:07" },
+        { "label": "Item 08", "action": "item:08" }
+      ]
+    },
+    {
+      "component": "grid",
+      "id": "max-grid-sample",
+      "rows": [
+        ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+        ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+        ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+        ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+        ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+      ]
+    }
+  ]
+}

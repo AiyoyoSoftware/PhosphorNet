@@ -1,0 +1,48 @@
+id = "admin"
+name = "Station Admin"
+entry = "app.lua"
+visibility = "public"
+access = "admin"
+
+capabilities = [
+  "state:user:read",
+  "state:user:write",
+  "state:global:read",
+  "notify:self",
+  "notify:all",
+  "capture_keys",
+  "admin:read_station",
+  "admin:read_users",
+  "admin:read_doors",
+  "admin:read_runtime",
+  "admin:read_storage",
+  "admin:read_logs",
+  "admin:set_user_roles",
+  "admin:set_door_policy",
+  "admin:set_door_settings",
+  "admin:reload_manifests",
+  "admin:set_station_notice",
+  "admin:set_maintenance",
+  "admin:moderate_users",
+  "admin:reorder_doors",
+]
+
+[settings.recent_event_limit]
+type = "int"
+label = "Recent station events shown"
+default = 15
+
+[settings.recent_notice_limit]
+type = "int"
+label = "Recent admin notices shown"
+default = 12
+
+[settings.show_storage_maintenance_actions]
+type = "bool"
+label = "Show not-yet-ready storage maintenance actions"
+default = true
+
+[settings.show_runtime_actions]
+type = "bool"
+label = "Show runtime action buttons"
+default = true

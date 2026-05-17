@@ -1,0 +1,12 @@
+id = "strategy_demo"
+name = "Iron Orchard"
+entry = "app.lua"
+runtime = "lua"
+
+capabilities = [
+  "state:room:read",
+  "state:room:write",
+  "broadcast:room",
+  "notify:room",
+  "capture_keys",
+]

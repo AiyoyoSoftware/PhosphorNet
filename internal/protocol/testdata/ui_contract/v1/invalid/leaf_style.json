@@ -1,0 +1,17 @@
+{
+  "component": "screen",
+  "children": [
+    {
+      "component": "button",
+      "id": "painted-button",
+      "text": "Paint Me",
+      "action": "paint",
+      "style": {
+        "background": {
+          "kind": "solid",
+          "color": "#ff0000"
+        }
+      }
+    }
+  ]
+}

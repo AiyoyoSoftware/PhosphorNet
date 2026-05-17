@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phosphornet.local/schema/json-ui-v1.schema.json",
+  "title": "PhosphorNet JSON UI Contract v1",
+  "description": "Canonical schema for the PhosphorNet trusted-client JSON UI tree. The Go protocol package owns this schema.",
+  "$ref": "#/$defs/uiNode",
+  "$defs": {
+    "uiNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/screen" },
+        { "$ref": "#/$defs/header" },
+        { "$ref": "#/$defs/text" },
+        { "$ref": "#/$defs/markdown" },
+        { "$ref": "#/$defs/status" },
+        { "$ref": "#/$defs/panel" },
+        { "$ref": "#/$defs/menu" },
+        { "$ref": "#/$defs/list" },
+        { "$ref": "#/$defs/dynamicList" },
+        { "$ref": "#/$defs/input" },
+        { "$ref": "#/$defs/textarea" },
+        { "$ref": "#/$defs/button" },
+        { "$ref": "#/$defs/checkbox" },
+        { "$ref": "#/$defs/log" },
+        { "$ref": "#/$defs/grid" }
+      ]
+    },
+    "children": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/uiNode" }
+    },
+    "componentID": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "chromeText": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "multilineText": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "item": {
+      "type": "object",
+      "required": ["label"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "$ref": "#/$defs/chromeText" },
+        "action": { "$ref": "#/$defs/chromeText" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/item" }
+    },
+    "hexColor": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "gradientStop": {
+      "type": "object",
+      "required": ["at", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "color": { "$ref": "#/$defs/hexColor" }
+      }
+    },
+    "background": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "solid" },
+            "color": { "$ref": "#/$defs/hexColor" },
+            "from": { "$ref": "#/$defs/hexColor" },
+            "direction": { "enum": ["vertical", "horizontal", "diagonal"] },
+            "to": { "$ref": "#/$defs/hexColor" },
+            "stops": {
+              "type": "array",
+              "maxItems": 8,
+              "items": { "$ref": "#/$defs/gradientStop" }
+            }
+          },
+          "anyOf": [
+            { "required": ["color"] },
+            { "required": ["from"] }
+          ]
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "gradient" },
+            "direction": { "enum": ["vertical", "horizontal", "diagonal"] },
+            "color": { "$ref": "#/$defs/hexColor" },
+            "from": { "$ref": "#/$defs/hexColor" },
+            "to": { "$ref": "#/$defs/hexColor" },
+            "stops": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": { "$ref": "#/$defs/gradientStop" }
+            }
+          },
+          "anyOf": [
+            { "required": ["stops"] },
+            { "required": ["from", "to"] },
+            { "required": ["color"] }
+          ]
+        }
+      ]
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": { "$ref": "#/$defs/background" }
+      }
+    },
+    "screen": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "screen" },
+        "children": { "$ref": "#/$defs/children" },
+        "scroll": { "const": "bottom" },
+        "capture_keys": { "type": "boolean" },
+        "style": { "$ref": "#/$defs/style" }
+      }
+    },
+    "header": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "header" },
+        "text": { "$ref": "#/$defs/chromeText" }
+      }
+    },
+    "text": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "text" },
+        "text": { "$ref": "#/$defs/multilineText" }
+      }
+    },
+    "markdown": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "markdown" },
+        "text": { "$ref": "#/$defs/multilineText" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "status" },
+        "text": { "$ref": "#/$defs/chromeText" }
+      }
+    },
+    "panel": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "panel" },
+        "title": { "$ref": "#/$defs/chromeText" },
+        "children": { "$ref": "#/$defs/children" },
+        "style": { "$ref": "#/$defs/style" }
+      }
+    },
+    "menu": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "menu" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "items": { "$ref": "#/$defs/items" }
+      }
+    },
+    "list": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "list" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "items": { "$ref": "#/$defs/items" }
+      }
+    },
+    "dynamicList": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "dynamic_list" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "items": { "$ref": "#/$defs/items" }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "input" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "placeholder": { "$ref": "#/$defs/chromeText" },
+        "value": { "$ref": "#/$defs/multilineText" },
+        "dock": { "const": "bottom" }
+      }
+    },
+    "textarea": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "textarea" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "placeholder": { "$ref": "#/$defs/chromeText" },
+        "value": { "$ref": "#/$defs/multilineText" },
+        "dock": { "const": "bottom" }
+      }
+    },
+    "button": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "button" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "text": { "$ref": "#/$defs/chromeText" },
+        "action": { "$ref": "#/$defs/chromeText" }
+      }
+    },
+    "checkbox": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "checkbox" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "text": { "$ref": "#/$defs/chromeText" },
+        "checked": { "type": "boolean" },
+        "action": { "$ref": "#/$defs/chromeText" }
+      }
+    },
+    "log": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "log" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "children": { "$ref": "#/$defs/children" },
+        "style": { "$ref": "#/$defs/style" }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "required": ["component", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "grid" },
+        "id": { "$ref": "#/$defs/componentID" },
+        "rows": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "array",
+            "maxItems": 12,
+            "items": { "$ref": "#/$defs/chromeText" }
+          }
+        }
+      }
+    }
+  }
+}

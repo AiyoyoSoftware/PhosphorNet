@@ -1,0 +1,6 @@
+{
+  "component": "screen",
+  "children": [
+    { "component": "raw", "text": "\u001b[31mno ansi passthrough\u001b[0m" }
+  ]
+}

@@ -1,0 +1,28 @@
+id = "profile"
+name = "Profile"
+entry = "app.lua"
+runtime = "lua"
+
+capabilities = [
+  "notify:self",
+]
+
+[settings.display_name_placeholder]
+type = "string"
+label = "Display name prompt"
+default = "display name"
+
+[settings.status_line_placeholder]
+type = "string"
+label = "Status line prompt"
+default = "status line"
+
+[settings.bio_placeholder]
+type = "string"
+label = "Bio prompt"
+default = "optional bio"
+
+[settings.show_passport_help]
+type = "bool"
+label = "Show passport help panel"
+default = true
