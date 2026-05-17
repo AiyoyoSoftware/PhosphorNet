@@ -1,5 +1,10 @@
 # changelog.md
 
+## 2026-05-17 - README Use Case Clarity
+
+- Rewrote the README "What It Is Good For" section in simpler first-time-reader language, with concrete use cases and less architecture jargon.
+- Added a compact list of currently shipped doors to the README overview.
+
 ## 2026-05-17 - High-Impact Integration Coverage
 
 - Added a node integration test suite that exercises current high-impact shipped features from the changelog through full websocket sessions, temp Lua doors, Ed25519 auth, and SQLite-backed state.

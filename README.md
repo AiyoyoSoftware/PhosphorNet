@@ -14,7 +14,7 @@ The goal is not to recreate the web inside a terminal. The goal is a smaller, in
 
 It does not provide shell access. It provides structured remote apps rendered by a local terminal client.
 
-It has some of the texture of classic BBSes, but the point is not nostalgia.
+It has some of the texture of classic BBSes, but the usecases extend beyond nostalgia.
 
 <table>
   <tr>
@@ -46,30 +46,31 @@ It has some of the texture of classic BBSes, but the point is not nostalgia.
 
 ## What It Is Good For
 
-PhosphorNet is meant for people who want interactive networked software without defaulting to a browser app, a SaaS backend, or raw SSH access.
+PhosphorNet is useful when you want people to connect to a shared place from their terminal, without giving them a shell account or building a full web app.
 
-Good fits include:
+It is a good fit for:
 
-- private stations for teams, clubs, friend groups, or local communities
-- terminal-native community hubs with chat, forums, profiles, and admin tools
-- private machine dashboards for services you do not want to expose through a browser
-- operational dashboards and admin consoles that do not need to expose a web UI
-- small multiplayer games, experiments, bots, and collaborative tools
-- self-hosted stations where identity, access, policy, and data stay close to the operator
-- research or prototyping around safe remote UI, portable identity, and small app runtimes
+- a terminal-based social space for computer clubs, hackerspaces, retrocomputing groups, or technical communities
+- a homelab control panel with status pages, logs, notes, and maintenance actions
+- internal tools for a small server, workshop, studio, or project space
+- chat and forum spaces for people who already like terminal software
+- small multiplayer games, shared experiments, bots, and collaborative toys
+- admin panels for services that should not have a public browser UI
+- prototypes for safer remote interfaces where the server does not control the user's terminal
 
-For example: instead of exposing a web admin page for a homelab, you can expose a PhosphorNet station with authenticated terminal-native doors for status, logs, notes, and maintenance actions.
+For example, instead of exposing a web dashboard for a home server, you could run a PhosphorNet station. Trusted users connect with `phosphor`, open doors for status, logs, chat, or admin tasks, and the station keeps its data and access rules local.
 
-The core design choices are:
+The currently shipped doors include:
 
-- **terminal-first**: the client is a real TUI, not a webpage pretending to be a terminal
-- **station-first**: each hosted node has its own apps, policy, users, and data
-- **door-based**: applications are small hosted places with a common runtime contract
-- **trusted-client rendering**: remote doors send structured UI, not terminal escape soup
-- **passport identity**: users carry Ed25519 identities instead of disposable usernames
-- **hackable by design**: doors can be written in Lua or any stdio-speaking command without changing the client
+- `lobby`: the station landing page, with presence and station notices
+- `profile`: local user profiles with a display name, status line, and bio
+- `chat`: a shared room chat
+- `forum`: board-style threads and replies
+- `admin`: station settings, door controls, user moderation, logs, and maintenance tools
 
-Most modern social platforms are browser-first, cloud-first, and feed-first. PhosphorNet deliberately explores a different shape: a trusted local client, self-hosted stations, portable identity, and small server-side apps that return structured UI instead of client-side code.
+The important idea is simple: the station runs the apps, but your own terminal client draws the screen. The station sends structured UI, not raw terminal commands, so a door can offer buttons, forms, lists, and text without taking over your terminal.
+
+PhosphorNet is not trying to replace the web. It is for smaller, self-hosted spaces where the terminal is the front door, identity is portable, and apps can be simple scripts instead of websites.
 
 ## Quick Start
 
@@ -138,7 +139,6 @@ PhosphorNet is in MVP / public-alpha preparation. The core loop works today:
 Some parts are still MVP-grade:
 
 - the switchboard is only a scaffold
-- manifest `capabilities = [...]` is enforced for door effects and remains separate from stdio process isolation
 - only `open_door` transitions are implemented end-to-end
 - rooms are currently implicit per door
 - presence is in-memory
