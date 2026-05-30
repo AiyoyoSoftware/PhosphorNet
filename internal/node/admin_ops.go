@@ -8,6 +8,7 @@ import (
 
 	"phosphornet/internal/protocol"
 	"phosphornet/internal/runtime"
+	"phosphornet/internal/storage"
 )
 
 type adminOpResult struct {
@@ -74,6 +75,7 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 	if policy.Moderation.RateLimits == nil {
 		policy.Moderation.RateLimits = map[string]userRateLimit{}
 	}
+	pendingAudit := []storage.AuditEvent{}
 	for _, op := range ops {
 		switch op.Op {
 		case "set_user_role":
@@ -92,6 +94,10 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				policy.Roles[publicKey] = role
 				s.events.add("admin_action", door.ID, session.publicKey, "set role "+role+" for "+publicKey)
 			}
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_user_role", publicKey, "success", map[string]any{
+				"role":        role,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "set_door_roles":
 			doorID := strings.TrimSpace(op.DoorID)
@@ -109,6 +115,10 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				policy.DoorRoles[doorID] = roles
 				s.events.add("admin_action", door.ID, session.publicKey, "set role policy for door "+doorID)
 			}
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_door_roles", doorID, "success", map[string]any{
+				"roles":       roles,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "set_door_enabled":
 			doorID := strings.TrimSpace(op.DoorID)
@@ -131,10 +141,18 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				policy.DisabledDoors[doorID] = true
 				s.events.add("admin_action", door.ID, session.publicKey, "disabled door "+doorID)
 			}
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_door_enabled", doorID, "success", map[string]any{
+				"enabled":     *op.Enabled,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "reorder_doors":
 			policy.DoorOrder = orderedStringSliceFromAny(op.DoorOrder)
 			s.events.add("admin_action", door.ID, session.publicKey, "reordered doors")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.reorder_doors", "doors", "success", map[string]any{
+				"door_order":  policy.DoorOrder,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "set_door_setting":
 			doorID := strings.TrimSpace(op.DoorID)
@@ -169,11 +187,22 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				policy.DoorSettings[doorID] = doorSettings
 			}
 			s.events.add("admin_action", door.ID, session.publicKey, "updated setting "+doorID+"."+key)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_door_setting", doorID+"."+key, "success", map[string]any{
+				"door_id":     doorID,
+				"setting_key": key,
+				"reset":       op.Reset,
+				"value":       op.SettingValue,
+				"source_door": door.ID,
+			}))
 			result.doorSettingsChanged = true
 		case "reload_manifests":
 			if err := s.reloadDoorManifests(ctx); err != nil {
 				return result, err
 			}
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.reload_manifests", s.cfg.DoorsDir, "success", map[string]any{
+				"door_count":  len(s.doorManifests()),
+				"source_door": door.ID,
+			}))
 			result.reloadedManifests = true
 		case "set_station_notice":
 			message := strings.TrimSpace(op.Message)
@@ -182,10 +211,16 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			policy.Notices = append(policy.Notices, message)
 			s.events.add("admin_action", door.ID, session.publicKey, "posted station notice")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_station_notice", "station", "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "clear_station_notices":
 			policy.Notices = []string{}
 			s.events.add("admin_action", door.ID, session.publicKey, "cleared station notices")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.clear_station_notices", "station", "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "set_maintenance":
 			if op.Maintenance == nil {
@@ -193,20 +228,34 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			policy.MaintenanceMode = *op.Maintenance
 			s.events.add("admin_action", door.ID, session.publicKey, fmt.Sprintf("set maintenance mode to %t", *op.Maintenance))
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_maintenance", "station", "success", map[string]any{
+				"maintenance": *op.Maintenance,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "record_maintenance_checkpoint":
 			policy.MaintenanceCount++
 			s.events.add("admin_action", door.ID, session.publicKey, "recorded maintenance checkpoint")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.record_maintenance_checkpoint", "station", "success", map[string]any{
+				"maintenance_count": policy.MaintenanceCount,
+				"source_door":       door.ID,
+			}))
 			result.policyChanged = true
 		case "reset_maintenance":
 			policy.MaintenanceMode = false
 			policy.MaintenanceCount = 0
 			policy.Notices = []string{}
 			s.events.add("admin_action", door.ID, session.publicKey, "reset maintenance state")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.reset_maintenance", "station", "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "clear_event_log":
 			s.events.clear()
 			s.events.add("admin_action", door.ID, session.publicKey, "cleared in-memory event log")
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.clear_event_log", "runtime_event_log", "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.clearedEvents = true
 		case "ban_key":
 			publicKey := strings.TrimSpace(op.PublicKey)
@@ -215,6 +264,11 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			policy.Moderation.BannedKeys[publicKey] = newModerationEntry(session, firstNonEmptyString(op.Reason, op.Message), op.ExpiresAt)
 			s.events.add("moderation_action", door.ID, session.publicKey, "banned key "+publicKey)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.ban_key", publicKey, "success", map[string]any{
+				"reason":      firstNonEmptyString(op.Reason, op.Message),
+				"expires_at":  op.ExpiresAt,
+				"source_door": door.ID,
+			}))
 			result.bannedKeys = append(result.bannedKeys, publicKey)
 			result.policyChanged = true
 		case "unban_key":
@@ -224,6 +278,9 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			delete(policy.Moderation.BannedKeys, publicKey)
 			s.events.add("moderation_action", door.ID, session.publicKey, "unbanned key "+publicKey)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.unban_key", publicKey, "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "mute_key":
 			publicKey := strings.TrimSpace(op.PublicKey)
@@ -232,6 +289,11 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			policy.Moderation.MutedKeys[publicKey] = newModerationEntry(session, firstNonEmptyString(op.Reason, op.Message), op.ExpiresAt)
 			s.events.add("moderation_action", door.ID, session.publicKey, "muted key "+publicKey)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.mute_key", publicKey, "success", map[string]any{
+				"reason":      firstNonEmptyString(op.Reason, op.Message),
+				"expires_at":  op.ExpiresAt,
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "unmute_key":
 			publicKey := strings.TrimSpace(op.PublicKey)
@@ -240,6 +302,9 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 			}
 			delete(policy.Moderation.MutedKeys, publicKey)
 			s.events.add("moderation_action", door.ID, session.publicKey, "unmuted key "+publicKey)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.unmute_key", publicKey, "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		case "set_user_rate_limit":
 			publicKey := strings.TrimSpace(op.PublicKey)
@@ -264,6 +329,12 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				}
 				s.events.add("moderation_action", door.ID, session.publicKey, "updated rate limit for "+publicKey)
 			}
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.set_user_rate_limit", publicKey, "success", map[string]any{
+				"reset":             op.Reset,
+				"events_per_minute": op.EventsPerMinute,
+				"opens_per_minute":  op.OpensPerMinute,
+				"source_door":       door.ID,
+			}))
 			result.policyChanged = true
 		case "record_moderation_note":
 			publicKey := strings.TrimSpace(op.PublicKey)
@@ -281,6 +352,9 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 				policy.Moderation.ModerationNotes = append([]moderationNote{}, policy.Moderation.ModerationNotes[len(policy.Moderation.ModerationNotes)-100:]...)
 			}
 			s.events.add("moderation_action", door.ID, session.publicKey, "recorded moderation note for "+publicKey)
+			pendingAudit = append(pendingAudit, auditEvent(session.publicKey, "admin.record_moderation_note", publicKey, "success", map[string]any{
+				"source_door": door.ID,
+			}))
 			result.policyChanged = true
 		}
 	}
@@ -288,6 +362,9 @@ func (s *Server) applyAdminOps(ctx context.Context, session *sessionState, door 
 		if err := s.saveStationPolicy(ctx, policy); err != nil {
 			return result, err
 		}
+	}
+	for _, event := range pendingAudit {
+		s.audit(ctx, event)
 	}
 	for _, publicKey := range result.bannedKeys {
 		s.sessions.closePublicKey(ctx, publicKey, "station access revoked")

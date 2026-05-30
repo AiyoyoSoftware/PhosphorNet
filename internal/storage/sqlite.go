@@ -54,9 +54,20 @@ type StateRecordSummary struct {
 	UpdatedAt string
 }
 
+type AuditEvent struct {
+	ID               int64          `json:"id,omitempty"`
+	Timestamp        string         `json:"timestamp"`
+	ActorPublicKey   string         `json:"actor_public_key,omitempty"`
+	ActorFingerprint string         `json:"actor_fingerprint,omitempty"`
+	Action           string         `json:"action"`
+	Target           string         `json:"target,omitempty"`
+	Result           string         `json:"result"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
+}
+
 var stateKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-const CurrentSchemaVersion = 4
+const CurrentSchemaVersion = 5
 
 func OpenSQLite(path string) (*Store, error) {
 	absPath, err := filepath.Abs(path)
@@ -137,7 +148,26 @@ CREATE TABLE IF NOT EXISTS node_state (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
-);`
+);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL,
+  actor_public_key TEXT,
+  actor_fingerprint TEXT,
+  action TEXT NOT NULL,
+  target TEXT,
+  result TEXT NOT NULL,
+  metadata_json TEXT NOT NULL
+);
+
+DROP TRIGGER IF EXISTS audit_events_no_delete;
+
+CREATE TRIGGER IF NOT EXISTS audit_events_no_update
+BEFORE UPDATE ON audit_events
+BEGIN
+  SELECT RAISE(ABORT, 'audit_events are append-only');
+END;`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("ensure schema: %w", err)
 	}
@@ -372,6 +402,135 @@ ON CONFLICT(key) DO UPDATE SET
   updated_at = excluded.updated_at;`
 	if _, err := s.db.ExecContext(ctx, query, key, string(raw), time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("save node state: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) AppendAuditEvent(ctx context.Context, event AuditEvent) (AuditEvent, error) {
+	if strings.TrimSpace(event.Action) == "" {
+		return AuditEvent{}, fmt.Errorf("append audit event: action is required")
+	}
+	if strings.TrimSpace(event.Result) == "" {
+		return AuditEvent{}, fmt.Errorf("append audit event: result is required")
+	}
+	if event.Timestamp == "" {
+		event.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+	if event.Metadata == nil {
+		event.Metadata = map[string]any{}
+	}
+	raw, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return AuditEvent{}, fmt.Errorf("encode audit metadata: %w", err)
+	}
+	query := `
+INSERT INTO audit_events (timestamp, actor_public_key, actor_fingerprint, action, target, result, metadata_json)
+VALUES (?, ?, ?, ?, ?, ?, ?);`
+	result, err := s.db.ExecContext(ctx, query, event.Timestamp, event.ActorPublicKey, event.ActorFingerprint, event.Action, event.Target, event.Result, string(raw))
+	if err != nil {
+		return AuditEvent{}, fmt.Errorf("append audit event: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err == nil {
+		event.ID = id
+	}
+	return event, nil
+}
+
+func (s *Store) ListAuditEvents(ctx context.Context, limit int) ([]AuditEvent, error) {
+	query := `
+SELECT id, timestamp, COALESCE(actor_public_key, ''), COALESCE(actor_fingerprint, ''), action, COALESCE(target, ''), result, metadata_json
+FROM audit_events
+ORDER BY id ASC;`
+	args := []any{}
+	if limit > 0 {
+		query = `
+SELECT id, timestamp, COALESCE(actor_public_key, ''), COALESCE(actor_fingerprint, ''), action, COALESCE(target, ''), result, metadata_json
+FROM audit_events
+ORDER BY id DESC
+LIMIT ?;`
+		args = append(args, limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list audit events: %w", err)
+	}
+	defer rows.Close()
+
+	events := []AuditEvent{}
+	for rows.Next() {
+		var event AuditEvent
+		var rawMetadata string
+		if err := rows.Scan(&event.ID, &event.Timestamp, &event.ActorPublicKey, &event.ActorFingerprint, &event.Action, &event.Target, &event.Result, &rawMetadata); err != nil {
+			return nil, fmt.Errorf("scan audit event: %w", err)
+		}
+		if rawMetadata != "" {
+			if err := json.Unmarshal([]byte(rawMetadata), &event.Metadata); err != nil {
+				return nil, fmt.Errorf("decode audit metadata: %w", err)
+			}
+		}
+		if event.Metadata == nil {
+			event.Metadata = map[string]any{}
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate audit events: %w", err)
+	}
+	if limit > 0 {
+		for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
+			events[i], events[j] = events[j], events[i]
+		}
+	}
+	return events, nil
+}
+
+func (s *Store) TrimAuditEventsToMaxBytes(ctx context.Context, maxBytes int64) error {
+	if maxBytes <= 0 {
+		return nil
+	}
+	query := `
+SELECT id,
+       length(timestamp) +
+       length(COALESCE(actor_public_key, '')) +
+       length(COALESCE(actor_fingerprint, '')) +
+       length(action) +
+       length(COALESCE(target, '')) +
+       length(result) +
+       length(metadata_json)
+FROM audit_events
+ORDER BY id ASC;`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("trim audit events: %w", err)
+	}
+	defer rows.Close()
+
+	type auditRowSize struct {
+		id    int64
+		bytes int64
+	}
+	rowsToTrim := []auditRowSize{}
+	var total int64
+	for rows.Next() {
+		var row auditRowSize
+		if err := rows.Scan(&row.id, &row.bytes); err != nil {
+			return fmt.Errorf("scan audit event size: %w", err)
+		}
+		rowsToTrim = append(rowsToTrim, row)
+		total += row.bytes
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate audit event sizes: %w", err)
+	}
+
+	for total > maxBytes && len(rowsToTrim) > 1 {
+		row := rowsToTrim[0]
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM audit_events WHERE id = ?;`, row.id); err != nil {
+			return fmt.Errorf("delete old audit event: %w", err)
+		}
+		total -= row.bytes
+		rowsToTrim = rowsToTrim[1:]
 	}
 	return nil
 }

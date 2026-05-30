@@ -86,22 +86,11 @@ Future work can still refine trust, maintenance-mode, and durable audit presenta
 
 ### Observability And Audit Trail
 
-Runtime diagnostics and security/operator audit history should be separated. PhosphorNet already has event-log and admin-operation pieces, but the architecture should define what the audit log is for.
+Addressed on 2026-05-30 for the server-side alpha audit trail. `phosphord` now separates durable audit history from the in-memory runtime event log with an append-only-ish SQLite `audit_events` table, optional JSONL mirroring through `phosphord serve --audit-log-file`, and a shared `--audit-log-max-bytes` limit for SQLite retention plus JSONL rotation.
 
-Audit-worthy events include:
+Current server-side audited events include admin role changes, door enable/disable, door role policy changes, door setting changes, manifest reloads, maintenance changes, event log clearing, moderation operations, failed or denied auth, door access denials, denied privileged effects, and node key changes detected at startup.
 
-- admin role changes
-- door enable/disable
-- door setting changes
-- manifest reloads
-- maintenance mode changes
-- denied privileged effects
-- failed auth
-- changed node key
-- trust decisions
-- event log clearing
-
-Decide whether audit data primarily serves debugging, moderation, security, operator history, or a deliberately separated set of logs.
+Remaining future work: richer Station Admin audit presentation, SQLite retention/export policy, and client-local trust-decision audit records.
 
 ### Database Lifecycle
 

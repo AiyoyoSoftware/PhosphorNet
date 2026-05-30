@@ -275,6 +275,8 @@ Current admin op authority:
 
 Station policy is stored in node-owned SQLite state. Bundled Station Admin is only the UI that submits these operations.
 
+`phosphord` also records durable audit events for security/operator mutations and denials. Audited events include admin role changes, door policy changes, door setting changes, manifest reloads, maintenance changes, event-log clearing, moderation operations, failed or denied auth, denied privileged door effects, door access denials, and node key changes detected at startup. Audit records are written to SQLite `audit_events` and may also be mirrored to a JSON Lines file with `phosphord serve --audit-log-file`. `--audit-log-max-bytes` applies to both SQLite retention and optional JSONL file rotation.
+
 Public-station moderation primitives are tracked separately in `docs/PhosphorNet_public_station_moderation.md`. Ban, mute, unban, unmute, per-user rate-limit, and moderation-note operations are node-owned `admin_ops` guarded by `admin:moderate_users` rather than encoded as ordinary roles or arbitrary door state. Muted sessions receive `ctx.permissions.muted = true`; `phosphord` also rejects generic muted write-like events while allowing navigation actions.
 
 ### Door Subviews

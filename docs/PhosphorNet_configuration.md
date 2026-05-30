@@ -80,6 +80,23 @@ Start a node with:
 go run ./cmd/phosphord serve --config node.toml
 ```
 
+Optionally mirror durable audit events to a JSON Lines file:
+
+```bash
+go run ./cmd/phosphord serve --config node.toml --audit-log-file ./audit.jsonl
+```
+
+Add a shared audit size limit with:
+
+```bash
+go run ./cmd/phosphord serve --config node.toml \
+  --audit-log-file ./audit.jsonl \
+  --audit-log-max-bytes 10485760 \
+  --audit-log-file-max-backups 5
+```
+
+Audit events are always appended to SQLite in `audit_events`. `--audit-log-file` is an additional operator-facing file sink, not a replacement for the database record. `--audit-log-max-bytes` applies to both sinks: it trims oldest SQLite audit rows after appends and rotates the optional JSONL mirror when the active file crosses the same size.
+
 `phosphord` serves:
 
 ```text

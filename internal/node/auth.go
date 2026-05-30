@@ -16,11 +16,13 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	var hello protocol.HelloMessage
 	if err := wsjson.Read(ctx, conn, &hello); err != nil {
 		s.events.add("auth_failure", "", "", "expected hello")
+		s.audit(ctx, auditEvent("", "auth.failed", "", "denied", map[string]any{"reason": "expected hello"}))
 		_ = conn.Close(websocket.StatusInvalidFramePayloadData, "expected hello")
 		return nil, false
 	}
 	if err := protocol.ValidateClientHello(hello); err != nil {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, err.Error())
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": err.Error(), "stage": "hello"}))
 		_ = wsjson.Write(ctx, conn, protocol.ErrorMessageFor(err))
 		_ = conn.Close(websocket.StatusPolicyViolation, "expected hello")
 		return nil, false
@@ -47,6 +49,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	challengeSignature, err := identity.SignNodeChallenge(nodePassport, challengePayload)
 	if err != nil {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, "node challenge signing failed")
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "error", map[string]any{"reason": "node challenge signing failed", "stage": "challenge"}))
 		_ = conn.Close(websocket.StatusInternalError, "node challenge signing failed")
 		return nil, false
 	}
@@ -60,10 +63,13 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 
 	var auth protocol.AuthMessage
 	if err := wsjson.Read(ctx, conn, &auth); err != nil {
+		s.events.add("auth_failure", "", hello.ClientPublicKey, "read auth failed")
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": "read auth failed", "stage": "auth"}))
 		return nil, false
 	}
 	if auth.Type != protocol.TypeAuth {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, "expected auth")
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": "expected auth", "stage": "auth"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: "expected auth",
@@ -72,6 +78,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	}
 	if auth.Payload.Purpose != "phosphornet.login.v1" {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, "invalid purpose")
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": "invalid purpose", "stage": "auth"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: "invalid purpose",
@@ -80,6 +87,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	}
 	if auth.Payload.NodeID != challengePayload.NodeID || auth.Payload.Nonce != challengePayload.Nonce || auth.Payload.ClientPublicKey != hello.ClientPublicKey {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, "challenge mismatch")
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": "challenge mismatch", "stage": "auth"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: "challenge mismatch",
@@ -88,6 +96,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	}
 	if err := identity.VerifyLogin(auth.Payload, auth.Signature); err != nil {
 		s.events.add("auth_failure", "", hello.ClientPublicKey, err.Error())
+		s.audit(ctx, auditEvent(hello.ClientPublicKey, "auth.failed", "", "denied", map[string]any{"reason": err.Error(), "stage": "signature"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: err.Error(),
@@ -96,6 +105,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	}
 	if _, banned, _, _, _ := s.moderationForPublicKey(ctx, auth.Payload.ClientPublicKey); banned {
 		s.events.add("access_denied", "", auth.Payload.ClientPublicKey, "station access revoked")
+		s.audit(ctx, auditEvent(auth.Payload.ClientPublicKey, "auth.denied", "station", "denied", map[string]any{"reason": "station access revoked"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: "station access revoked",
@@ -104,6 +114,7 @@ func (s *Server) authenticate(ctx context.Context, conn *websocket.Conn) (*sessi
 	}
 	if !s.stationAllows(ctx, auth.Payload.ClientPublicKey) {
 		s.events.add("access_denied", "", auth.Payload.ClientPublicKey, "station is invite-only")
+		s.audit(ctx, auditEvent(auth.Payload.ClientPublicKey, "auth.denied", "station", "denied", map[string]any{"reason": "station is invite-only"}))
 		_ = wsjson.Write(ctx, conn, protocol.AuthDeniedMessage{
 			Type:   protocol.TypeAuthDenied,
 			Reason: "station is invite-only",

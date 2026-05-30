@@ -25,11 +25,13 @@ func (s *Server) openDoorWithBudget(ctx context.Context, session *sessionState, 
 	door, ok := s.findDoor(doorID)
 	if !ok {
 		s.events.add("access_denied", doorID, session.publicKey, "unknown door")
+		s.audit(ctx, auditEvent(session.publicKey, "door.access_denied", doorID, "denied", map[string]any{"reason": "unknown door"}))
 		message := fmt.Sprintf("unknown door %q", doorID)
 		return protocol.NewCodedError(protocol.ErrorRuntimeDeniedPolicy, message, nil)
 	}
 	if !s.canAccessDoor(ctx, session, door) {
 		s.events.add("access_denied", doorID, session.publicKey, "door access denied")
+		s.audit(ctx, auditEvent(session.publicKey, "door.access_denied", doorID, "denied", map[string]any{"reason": "door access denied"}))
 		message := fmt.Sprintf("access denied for door %q", doorID)
 		return protocol.NewCodedError(protocol.ErrorRuntimeDeniedPolicy, message, nil)
 	}
@@ -72,6 +74,7 @@ func (s *Server) handleDoorEvent(ctx context.Context, session *sessionState, eve
 	}
 	if !s.canAccessDoor(ctx, session, door) {
 		s.events.add("access_denied", door.ID, session.publicKey, "active door access denied")
+		s.audit(ctx, auditEvent(session.publicKey, "door.access_denied", door.ID, "denied", map[string]any{"reason": "active door access denied"}))
 		return fmt.Errorf("access denied for door %q", door.ID)
 	}
 	if err := session.validateEvent(event); err != nil {
@@ -241,6 +244,10 @@ func (s *Server) invokeDoorLifecycle(parent context.Context, door runtime.DoorMa
 		return runtime.DoorResponse{}, err
 	}
 	if err := validateResponseCapabilities(session, door, response); err != nil {
+		s.audit(ctx, auditEvent(session.publicKey, "effect.denied", door.ID, "denied", map[string]any{
+			"reason":    err.Error(),
+			"lifecycle": string(lifecycle),
+		}))
 		return runtime.DoorResponse{}, protocol.NewCodedError(protocol.ErrorRuntimeDeniedPolicy, err.Error(), err)
 	}
 	if err := s.store.ApplyStateOps(ctx, door.ID, scopeIDs, session.role, response.StateOps); err != nil {

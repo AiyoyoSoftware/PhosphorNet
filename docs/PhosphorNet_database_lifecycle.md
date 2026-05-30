@@ -4,7 +4,7 @@
 
 This is the boring operator document for station memory.
 
-For the current MVP, SQLite is the station's durable memory. Losing the database means losing known users, user profiles, roles, door state, station settings, moderation state, station policy, and admin-door configuration.
+For the current MVP, SQLite is the station's durable memory. Losing the database means losing known users, user profiles, roles, door state, station settings, moderation state, station policy, durable audit events, and admin-door configuration.
 
 Backups should treat these files as one station bundle:
 
@@ -20,10 +20,26 @@ If a station has custom stdio images, also preserve the image source or registry
 On `phosphord serve`, the node logs the absolute SQLite path and current schema version:
 
 ```text
-phosphord database path=/srv/phosphornet/phosphornet.db schema_version=4
+phosphord database path=/srv/phosphornet/phosphornet.db schema_version=5
 ```
 
 The version is SQLite `PRAGMA user_version`. It should match the latest schema version understood by the running binary.
+
+## Audit Events
+
+`phosphord` appends operator/security audit records to the `audit_events` table. The table is append-only-ish: the shipped storage API appends new rows, SQLite rejects direct `UPDATE`, and size retention deletes only the oldest rows when an operator sets `--audit-log-max-bytes`.
+
+Current audit columns are:
+
+- `timestamp`
+- `actor_public_key`
+- `actor_fingerprint`
+- `action`
+- `target`
+- `result`
+- `metadata_json`
+
+The audit stream is separate from the in-memory Station Admin event log. Clearing the in-memory event log does not clear `audit_events`, and the clear action is itself audited. Operators may also pass `--audit-log-file` to `phosphord serve` to mirror the same events to a JSON Lines file. `--audit-log-max-bytes` applies to both SQLite retention and optional JSONL file rotation; `--audit-log-file-max-backups` controls how many rotated files are kept.
 
 ## Backup
 
@@ -93,6 +109,7 @@ The station keeps its network identity only if `node.toml` is still present, but
 - display names, bios, and status lines are gone
 - roles and station policy stored in SQLite are gone
 - moderation notes, bans, mutes, and rate limits are gone
+- durable audit events are gone unless mirrored or backed up separately
 - door settings and door state are gone
 - admin-door storage summaries start empty
 

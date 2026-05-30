@@ -139,7 +139,12 @@ func seedDefaultStationPolicyStore(ctx context.Context, store *storage.Store) er
 }
 
 func newServeCommand() *cobra.Command {
-	var configPath string
+	var (
+		configPath         string
+		auditLogFile       string
+		auditLogMaxBytes   int64
+		auditLogMaxBackups int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -171,7 +176,23 @@ func newServeCommand() *cobra.Command {
 			}
 			log.Printf("phosphord database path=%s schema_version=%d", store.Path(), schemaVersion)
 
-			nodeServer := newServer(cfg, doorManifests, store)
+			var auditFile *rotatingAuditFile
+			if auditLogFile != "" {
+				auditFile, err = openRotatingAuditFile(auditLogFile, auditLogMaxBytes, auditLogMaxBackups)
+				if err != nil {
+					return fmt.Errorf("open audit log file: %w", err)
+				}
+				defer auditFile.Close()
+				log.Printf("phosphord audit log file=%s max_bytes=%d max_backups=%d", auditLogFile, auditLogMaxBytes, auditLogMaxBackups)
+			}
+
+			nodeServer := newServerWithOptions(cfg, doorManifests, store, serverOptions{
+				AuditLogFile:     auditFile,
+				AuditLogMaxBytes: auditLogMaxBytes,
+			})
+			if err := nodeServer.rememberNodeIdentity(context.Background()); err != nil {
+				return fmt.Errorf("remember node identity: %w", err)
+			}
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("/ws", nodeServer.handleWS)
@@ -200,5 +221,8 @@ func newServeCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&configPath, "config", "node.toml", "node config path")
+	cmd.Flags().StringVar(&auditLogFile, "audit-log-file", "", "optional JSONL file to append audit events to")
+	cmd.Flags().Int64Var(&auditLogMaxBytes, "audit-log-max-bytes", 0, "maximum audit log bytes for SQLite retention and optional file rotation; 0 disables size limiting")
+	cmd.Flags().IntVar(&auditLogMaxBackups, "audit-log-file-max-backups", 5, "number of rotated audit log files to keep when audit log rotation is enabled")
 	return cmd
 }

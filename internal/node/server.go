@@ -19,23 +19,31 @@ import (
 )
 
 type Server struct {
-	cfg        config.NodeConfig
-	doorsMu    sync.RWMutex
-	doors      []runtime.DoorManifest
-	store      *storage.Store
-	sessions   *sessionRegistry
-	events     *eventLog
-	rateLimits *userRateTracker
+	cfg           config.NodeConfig
+	doorsMu       sync.RWMutex
+	doors         []runtime.DoorManifest
+	store         *storage.Store
+	sessions      *sessionRegistry
+	events        *eventLog
+	auditLog      *auditSink
+	auditMaxBytes int64
+	rateLimits    *userRateTracker
 }
 
 func newServer(cfg config.NodeConfig, doors []runtime.DoorManifest, store *storage.Store) *Server {
+	return newServerWithOptions(cfg, doors, store, serverOptions{})
+}
+
+func newServerWithOptions(cfg config.NodeConfig, doors []runtime.DoorManifest, store *storage.Store, options serverOptions) *Server {
 	return &Server{
-		cfg:        cfg,
-		doors:      doors,
-		store:      store,
-		sessions:   newSessionRegistry(),
-		events:     newEventLog(100),
-		rateLimits: newUserRateTracker(),
+		cfg:           cfg,
+		doors:         doors,
+		store:         store,
+		sessions:      newSessionRegistry(),
+		events:        newEventLog(100),
+		auditLog:      &auditSink{file: options.AuditLogFile},
+		auditMaxBytes: options.AuditLogMaxBytes,
+		rateLimits:    newUserRateTracker(),
 	}
 }
 

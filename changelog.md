@@ -1,5 +1,14 @@
 # changelog.md
 
+## 2026-05-30 - Alpha Audit Trail
+
+- Added a durable SQLite `audit_events` table with timestamp, actor public key/fingerprint, action, target, result, and JSON metadata fields.
+- Made audit events append-only-ish with storage append APIs, SQLite row-update rejection, and controlled oldest-row retention when `--audit-log-max-bytes` is set.
+- Added `phosphord serve --audit-log-file` to mirror audit events to an optional JSON Lines file for operators, with size-based rotation through the shared `--audit-log-max-bytes` knob and backup count through `--audit-log-file-max-backups`.
+- Audited admin role and door policy changes, door setting edits, manifest reloads, maintenance changes, event-log clearing, moderation operations, failed/denied auth, door access denials, denied privileged effects, and detected node key changes at startup.
+- Added focused audit tests plus websocket integration coverage for auth-denial, admin-change, and SQLite max-byte trimming audit behavior.
+- Updated configuration, runtime contract, database lifecycle, and todo docs for the server-side alpha audit trail.
+
 ## 2026-05-17 - README Use Case Clarity
 
 - Rewrote the README "What It Is Good For" section in simpler first-time-reader language, with concrete use cases and less architecture jargon.

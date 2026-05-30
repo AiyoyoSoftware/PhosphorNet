@@ -230,6 +230,104 @@ func TestIntegrationAdminDoorPolicyRefreshesVisibilityAndDeniesDisabledDoor(t *t
 	}
 }
 
+func TestIntegrationAuditEventsCaptureAuthDenialAndAdminChange(t *testing.T) {
+	ctx := context.Background()
+	doorsDir := t.TempDir()
+	writeIntegrationLobbyDoor(t, doorsDir)
+	writeIntegrationSimpleDoor(t, doorsDir, "puzzle", "Puzzle")
+	writeIntegrationAdminDoor(t, doorsDir, "", "disable_puzzle")
+
+	adminPassport, err := identity.Generate("admin")
+	if err != nil {
+		t.Fatalf("Generate(admin) error = %v", err)
+	}
+	h := newIntegrationHarnessWithConfig(t, doorsDir, []string{adminPassport.PublicKey}, func(cfg *config.NodeConfig) {
+		cfg.Access.Mode = "invite_only"
+	})
+	defer h.close()
+
+	outsiderPassport, err := identity.Generate("outsider")
+	if err != nil {
+		t.Fatalf("Generate(outsider) error = %v", err)
+	}
+	outsiderConn, _, err := websocket.Dial(ctx, h.wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial(outsider) error = %v", err)
+	}
+	denied := authenticateIntegrationDenied(t, ctx, outsiderConn, outsiderPassport)
+	outsiderConn.CloseNow()
+	if denied.Reason != "station is invite-only" {
+		t.Fatalf("auth denial = %#v, want invite-only denial", denied)
+	}
+
+	adminConn, adminRender := connectIntegrationClient(t, ctx, h.wsURL, adminPassport)
+	defer adminConn.CloseNow()
+	openDoor(t, ctx, adminConn, "admin")
+	adminRender = readIntegrationRender(t, ctx, adminConn)
+	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "disable-puzzle", "disable_puzzle")
+	_ = readIntegrationDoorList(t, ctx, adminConn)
+	_ = readIntegrationRender(t, ctx, adminConn)
+
+	events, err := h.store.ListAuditEvents(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if !auditEventsContain(events, "auth.denied", "station") {
+		t.Fatalf("audit events = %#v, want auth.denied station event", events)
+	}
+	if !auditEventsContain(events, "admin.set_door_enabled", "puzzle") {
+		t.Fatalf("audit events = %#v, want admin.set_door_enabled puzzle event", events)
+	}
+}
+
+func TestIntegrationAuditMaxBytesTrimsSQLiteEvents(t *testing.T) {
+	ctx := context.Background()
+	doorsDir := t.TempDir()
+	writeIntegrationLobbyDoor(t, doorsDir)
+
+	h := newIntegrationHarnessWithConfig(t, doorsDir, nil, func(cfg *config.NodeConfig) {
+		cfg.Access.Mode = "invite_only"
+	})
+	defer h.close()
+	h.server.auditMaxBytes = 150
+
+	for i := 0; i < 3; i++ {
+		passport, err := identity.Generate("outsider")
+		if err != nil {
+			t.Fatalf("Generate(outsider %d) error = %v", i, err)
+		}
+		conn, _, err := websocket.Dial(ctx, h.wsURL, nil)
+		if err != nil {
+			t.Fatalf("Dial(outsider %d) error = %v", i, err)
+		}
+		denied := authenticateIntegrationDenied(t, ctx, conn, passport)
+		conn.CloseNow()
+		if denied.Reason != "station is invite-only" {
+			t.Fatalf("auth denial = %#v, want invite-only denial", denied)
+		}
+	}
+
+	events, err := h.store.ListAuditEvents(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want max-bytes trim to retain newest event only", len(events))
+	}
+	if events[0].Action != "auth.denied" || events[0].Target != "station" {
+		t.Fatalf("retained audit event = %#v, want newest auth.denied station event", events[0])
+	}
+}
+
+func auditEventsContain(events []storage.AuditEvent, action, target string) bool {
+	for _, event := range events {
+		if event.Action == action && event.Target == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestIntegrationMutedUserWriteEventsRejectedButNavigationAllowed(t *testing.T) {
 	ctx := context.Background()
 	doorsDir := t.TempDir()
