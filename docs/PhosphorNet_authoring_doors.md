@@ -701,6 +701,8 @@ for user in ctx.presence.get("room_users", []):
 
 Presence is useful for room rosters, join/leave notices, and multiplayer proofs. It is not durable state.
 
+Reconnects create fresh sessions. During a short disconnect grace window, `phosphord` can reopen the user's previous door if it is still safe and cancel the pending `on_leave`, so door authors should treat lifecycle hooks as live-room signals rather than durable attendance history. Scroll position, focus, and unsent client input are not restored by the node.
+
 ## Security Rules For Door Authors
 
 Do:

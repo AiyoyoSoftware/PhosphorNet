@@ -34,6 +34,7 @@ There is currently no top-level `tests/` directory. The broad integration suite 
 | Admin op authorization | `internal/node/capabilities_test.go`: missing admin capability and moderation capability rejection; `internal/node/integration_test.go`: successful admin policy, settings, maintenance, reload, rate-limit flows | Covered, with negative authorization mostly at package layer |
 | Audit logs | `internal/node/audit_test.go`; `internal/storage/sqlite_test.go`; `internal/node/integration_test.go`: `TestIntegrationAuditEventsCaptureAuthDenialAndAdminChange`, `TestIntegrationAuditMaxBytesTrimsSQLiteEvents` | Covered |
 | Moderation policy | `internal/node/access_test.go`; `internal/node/integration_test.go`: ban disconnect and reconnect denial, mute enforcement with navigation carve-out, per-user event/open-door rate limits | Covered |
+| Reconnect/session recovery | `internal/node/integration_test.go`: `TestIntegrationReconnectWithinGraceReopensLastDoorWithoutJoinLeave`, `TestIntegrationDisconnectGraceFiresLeaveAfterTimeout`; `internal/node/session_test.go`: live registry targeting and presence behavior | Covered |
 
 ## Useful Next Gaps
 

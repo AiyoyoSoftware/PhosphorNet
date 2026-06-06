@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -45,8 +46,8 @@ func (s *Server) routeClientMessage(ctx context.Context, session *sessionState, 
 	case protocol.OpenDoorMessage:
 		return s.openDoor(ctx, session, message.DoorID)
 	case protocol.EventMessage:
-		if message.SessionID != session.id {
-			return fmt.Errorf("stale or mismatched session id")
+		if err := session.validateEventEnvelope(message, time.Now()); err != nil {
+			return err
 		}
 		return s.handleDoorEvent(ctx, session, message.Event)
 	default:

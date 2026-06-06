@@ -38,6 +38,20 @@ Lifecycle meaning:
 
 Missing lifecycle functions are treated as no-ops by the Lua invoker and Python stdio SDK helper.
 
+## Reconnect And Session Recovery
+
+Alpha reconnect behavior is intentionally small and explicit:
+
+- A reconnect always authenticates as a new WebSocket session with a new session ID.
+- If the previous connection dropped recently, `phosphord` may reopen the previous active door for the same passport when that door still exists and the new session can still access it.
+- If the previous door is missing, disabled, or no longer accessible, the new session opens `lobby`.
+- Reopening the previous door during the disconnect grace window does not run another `on_join` and cancels the delayed `on_leave`.
+- If the user does not reconnect before the grace window expires, `on_leave` runs for the old active door and the old session is removed.
+- Presence is live-only and in-memory. Disconnected sessions are not durable presence records.
+- Client scroll position, focused component state, and input drafts are not recovered across reconnect.
+
+The current default grace window is 5 seconds and node-owned. It exists to avoid noisy leave/rejoin churn during brief network drops, not to provide durable session resume.
+
 ## Request Envelope
 
 Every runtime invocation receives one typed request envelope.
@@ -308,7 +322,7 @@ UI helper buttons emit semantic actions such as `nav:push:posts`, `nav:back`, an
 - `phosphord` applies `state_ops`, `admin_ops`, routes `notifies`, and treats `broadcasts` as a signal to re-render matching live sessions after shared state changes.
 - Door effects are checked against manifest capabilities before they are applied.
 - Manifest capabilities describe PhosphorNet effect authority, not filesystem, network, process, or container authority. Host/container resources belong to `[isolation]`.
-- Room presence snapshots are live in memory and are included in runtime context.
+- Room presence snapshots are live in memory and are included in runtime context. They are not recovered as durable session state after reconnects or node restarts.
 - Runtime and door failures use stable node-to-client `error.code` values: `runtime_not_available`, `runtime_image_missing`, `runtime_timeout`, `runtime_bad_output`, `runtime_denied_by_policy`, `runtime_resource_limit`, `manifest_invalid`, and `door_crashed`.
 - `open_door` transitions are applied by `phosphord` so doors can hand off to another door without client-side routing.
 - Other declared transition kinds should currently be treated as reserved contract space rather than shipped behavior.

@@ -1,5 +1,19 @@
 # changelog.md
 
+## 2026-06-06 - Reconnect Session Recovery Semantics
+
+- Defined the public-alpha reconnect rule: reconnects create fresh sessions, briefly reopen the previous door only when it is still safe, otherwise return to `lobby`.
+- Added delayed disconnect cleanup so `on_leave` runs after a short grace window, while reconnecting within that window cancels the pending leave and avoids a duplicate `on_join`.
+- Kept presence live-only and documented that scroll position, focus, and unsent input drafts are not recovered across reconnects.
+- Added node integration coverage for same-door recovery within the grace window and leave cleanup after the grace expires.
+
+## 2026-06-06 - Event Ordering And Double-Submit Guards
+
+- Added render revisions to node render messages and active-door/render/event metadata to client event messages.
+- Made `phosphord` reject mismatched session or active-door event envelopes, duplicate event IDs within a short live-session window, and stale render revisions for submit-like events.
+- Updated the TUI client to attach the active door, current render revision, and generated event ID to each outbound event.
+- Documented the shipped event-ordering behavior in the architecture and todo docs, with focused node tests for stale and duplicate event rejection.
+
 ## 2026-06-06 - Test Index
 
 - Added `docs/PhosphorNet_test_index.md` as the release-confidence test index, mapping the current protocol, security, runtime, admin, moderation, audit, and compatibility promises to the tests that cover them.

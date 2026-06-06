@@ -141,7 +141,8 @@ Some parts are still MVP-grade:
 - the switchboard is only a scaffold
 - only `open_door` transitions are implemented end-to-end
 - rooms are currently implicit per door
-- presence is in-memory
+- presence is live and in-memory
+- reconnects create a fresh session; brief drops may reopen the last safe door, but scroll position and input drafts are not restored
 - the Lua sandbox is useful hardening rather than complete hostile-code isolation
 
 ## Architecture

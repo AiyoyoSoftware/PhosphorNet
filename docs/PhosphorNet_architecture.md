@@ -533,6 +533,8 @@ node sends new render tree
 {
   "type": "render",
   "session_id": "s1",
+  "active_door_id": "lobby",
+  "render_revision": 1,
   "view": {
     "component": "screen",
     "children": [
@@ -563,6 +565,9 @@ node sends new render tree
 {
   "type": "event",
   "session_id": "s1",
+  "active_door_id": "lobby",
+  "render_revision": 1,
+  "event_id": "8f7a2c2f0e7d4c7d9c4f932c8d5f70af",
   "event": {
     "kind": "action",
     "action": "open:chat",
@@ -570,6 +575,13 @@ node sends new render tree
   }
 }
 ```
+
+Every client event is tied to the active session, active door, and render
+revision that produced the interactive control. `phosphord` rejects events with
+mismatched session or door metadata, rejects duplicate `event_id` values within a
+short live-session window, and rejects stale render revisions for submit-like
+events (`action`, `select`, and `submit`). Raw key/focus-style traffic still
+carries the revision but is not rejected only because a newer render has arrived.
 
 ## 10.5 Component Set for MVP
 

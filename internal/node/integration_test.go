@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -80,6 +81,94 @@ func TestIntegrationCompatibleClientAuthRendersLobbyAndPersistsState(t *testing.
 	}
 }
 
+func TestIntegrationReconnectWithinGraceReopensLastDoorWithoutJoinLeave(t *testing.T) {
+	ctx := context.Background()
+	doorsDir := t.TempDir()
+	writeIntegrationLobbyDoor(t, doorsDir)
+	writeIntegrationLifecycleDoor(t, doorsDir)
+
+	h := newIntegrationHarnessWithServerOptions(t, doorsDir, nil, nil, serverOptions{DisconnectGrace: 200 * time.Millisecond})
+	defer h.close()
+
+	passport, err := identity.Generate("traveler")
+	if err != nil {
+		t.Fatalf("Generate(traveler) error = %v", err)
+	}
+	conn, _ := connectIntegrationClient(t, ctx, h.wsURL, passport)
+	openDoor(t, ctx, conn, "lifecycle")
+	firstRender := readIntegrationRender(t, ctx, conn)
+	if !uiTreeContainsText(firstRender.View, "Lifecycle door") ||
+		!uiTreeContainsText(firstRender.View, "Joins: 1") ||
+		!uiTreeContainsText(firstRender.View, "Leaves: 0") ||
+		!uiTreeContainsText(firstRender.View, "Room users: 1") {
+		t.Fatalf("first lifecycle render = %#v, want joined lifecycle door with one room user", firstRender.View)
+	}
+	conn.CloseNow()
+
+	reconnect, secondRender := connectIntegrationClient(t, ctx, h.wsURL, passport)
+	defer reconnect.CloseNow()
+	if secondRender.SessionID == firstRender.SessionID {
+		t.Fatalf("reconnect session id = %q, want a new session id", secondRender.SessionID)
+	}
+	if !uiTreeContainsText(secondRender.View, "Lifecycle door") ||
+		!uiTreeContainsText(secondRender.View, "Joins: 1") ||
+		!uiTreeContainsText(secondRender.View, "Leaves: 0") ||
+		!uiTreeContainsText(secondRender.View, "Room users: 1") {
+		t.Fatalf("reconnect render = %#v, want last door without extra join/leave", secondRender.View)
+	}
+
+	time.Sleep(250 * time.Millisecond)
+	state, err := h.store.LoadScopedState(ctx, "lifecycle", storage.StateScopeIDs{
+		User:   passport.PublicKey,
+		Room:   implicitRoomID("lifecycle"),
+		Global: "global",
+	})
+	if err != nil {
+		t.Fatalf("LoadScopedState() error = %v", err)
+	}
+	if state.User["joins"] != float64(1) || state.User["leaves"] != nil {
+		t.Fatalf("state after canceled pending leave = %#v, want one join and no leave", state.User)
+	}
+}
+
+func TestIntegrationDisconnectGraceFiresLeaveAfterTimeout(t *testing.T) {
+	ctx := context.Background()
+	doorsDir := t.TempDir()
+	writeIntegrationLobbyDoor(t, doorsDir)
+	writeIntegrationLifecycleDoor(t, doorsDir)
+
+	h := newIntegrationHarnessWithServerOptions(t, doorsDir, nil, nil, serverOptions{DisconnectGrace: 25 * time.Millisecond})
+	defer h.close()
+
+	passport, err := identity.Generate("traveler")
+	if err != nil {
+		t.Fatalf("Generate(traveler) error = %v", err)
+	}
+	conn, _ := connectIntegrationClient(t, ctx, h.wsURL, passport)
+	openDoor(t, ctx, conn, "lifecycle")
+	_ = readIntegrationRender(t, ctx, conn)
+	conn.CloseNow()
+
+	time.Sleep(100 * time.Millisecond)
+	state, err := h.store.LoadScopedState(ctx, "lifecycle", storage.StateScopeIDs{
+		User:   passport.PublicKey,
+		Room:   implicitRoomID("lifecycle"),
+		Global: "global",
+	})
+	if err != nil {
+		t.Fatalf("LoadScopedState() error = %v", err)
+	}
+	if state.User["joins"] != float64(1) || state.User["leaves"] != float64(1) {
+		t.Fatalf("state after disconnect grace = %#v, want one join and one leave", state.User)
+	}
+
+	reconnect, render := connectIntegrationClient(t, ctx, h.wsURL, passport)
+	defer reconnect.CloseNow()
+	if !uiTreeContainsText(render.View, "Lobby") {
+		t.Fatalf("render after expired disconnect = %#v, want lobby", render.View)
+	}
+}
+
 func TestIntegrationAdminDoorSettingRerendersActiveSessions(t *testing.T) {
 	ctx := context.Background()
 	doorsDir := t.TempDir()
@@ -111,7 +200,7 @@ func TestIntegrationAdminDoorSettingRerendersActiveSessions(t *testing.T) {
 		t.Fatalf("admin render = %#v, want admin console", adminRender.View)
 	}
 
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "set-motd", "set_motd")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "set-motd", "set_motd")
 	memberUpdate := readIntegrationRender(t, ctx, memberConn)
 	if !uiTreeContainsText(memberUpdate.View, "MOTD: Admin MOTD") {
 		t.Fatalf("member rerender = %#v, want admin-updated MOTD", memberUpdate.View)
@@ -149,7 +238,7 @@ func TestIntegrationModerationBanDisconnectsAndBlocksReconnect(t *testing.T) {
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
 
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "ban-target", "ban_target")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "ban-target", "ban_target")
 
 	targetError := readIntegrationError(t, ctx, targetConn)
 	if targetError.Code != string(protocol.ErrorAuth) || !strings.Contains(targetError.Message, "station access revoked") {
@@ -216,7 +305,7 @@ func TestIntegrationAdminDoorPolicyRefreshesVisibilityAndDeniesDisabledDoor(t *t
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "disable-puzzle", "disable_puzzle")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "disable-puzzle", "disable_puzzle")
 
 	refreshedDoors := readIntegrationDoorList(t, ctx, memberConn)
 	if doorListContains(refreshedDoors, "puzzle") {
@@ -264,7 +353,7 @@ func TestIntegrationAuditEventsCaptureAuthDenialAndAdminChange(t *testing.T) {
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "disable-puzzle", "disable_puzzle")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "disable-puzzle", "disable_puzzle")
 	_ = readIntegrationDoorList(t, ctx, adminConn)
 	_ = readIntegrationRender(t, ctx, adminConn)
 
@@ -354,16 +443,16 @@ func TestIntegrationMutedUserWriteEventsRejectedButNavigationAllowed(t *testing.
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "mute-target", "mute_target")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "mute-target", "mute_target")
 
 	_ = readIntegrationDoorList(t, ctx, targetConn)
-	sendIntegrationAction(t, ctx, targetConn, targetRender.SessionID, "write-message", "write_message")
+	sendIntegrationAction(t, ctx, targetConn, targetRender, "write-message", "write_message")
 	mutedError := readIntegrationError(t, ctx, targetConn)
 	if mutedError.Code != string(protocol.ErrorProtocol) || !strings.Contains(mutedError.Message, "user is muted") {
 		t.Fatalf("muted write error = %#v, want protocol error for muted write", mutedError)
 	}
 
-	sendIntegrationAction(t, ctx, targetConn, targetRender.SessionID, "open-profile", "open_door:profile")
+	sendIntegrationAction(t, ctx, targetConn, targetRender, "open-profile", "open_door:profile")
 	profileRender := readIntegrationRender(t, ctx, targetConn)
 	if !uiTreeContainsText(profileRender.View, "Profile") {
 		t.Fatalf("muted navigation render = %#v, want profile door", profileRender.View)
@@ -385,7 +474,7 @@ func TestIntegrationForgedEventTargetRejectedBeforeDoorUpdate(t *testing.T) {
 	conn, render := connectIntegrationClient(t, ctx, h.wsURL, passport)
 	defer conn.CloseNow()
 
-	sendIntegrationAction(t, ctx, conn, render.SessionID, "not-in-render", "write_message")
+	sendIntegrationAction(t, ctx, conn, render, "not-in-render", "write_message")
 	rejected := readIntegrationError(t, ctx, conn)
 	if rejected.Code != string(protocol.ErrorProtocol) || !strings.Contains(rejected.Message, "not present in the active render") {
 		t.Fatalf("forged event error = %#v, want render policy rejection", rejected)
@@ -480,7 +569,7 @@ func TestIntegrationAdminRolePolicyRefreshesRoleGatedDoorAccess(t *testing.T) {
 
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "grant-vault", "grant_vault")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "grant-vault", "grant_vault")
 
 	refreshedDoors := readIntegrationDoorList(t, ctx, memberConn)
 	if !doorListContains(refreshedDoors, "vault") {
@@ -517,7 +606,7 @@ func TestIntegrationProfileUpdateRerendersOtherPresenceViews(t *testing.T) {
 	defer actorConn.CloseNow()
 	openDoor(t, ctx, actorConn, "profile")
 	profileRender := readIntegrationRender(t, ctx, actorConn)
-	sendIntegrationAction(t, ctx, actorConn, profileRender.SessionID, "save-profile", "save_profile")
+	sendIntegrationAction(t, ctx, actorConn, profileRender, "save-profile", "save_profile")
 
 	observerUpdate := readIntegrationRender(t, ctx, observerConn)
 	if !uiTreeContainsText(observerUpdate.View, "Online: Ada") {
@@ -574,7 +663,7 @@ func TestIntegrationAdminReloadManifestsPublishesNewDoorList(t *testing.T) {
 
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "reload-manifests", "reload_manifests")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "reload-manifests", "reload_manifests")
 
 	refreshedDoors := readIntegrationDoorList(t, ctx, memberConn)
 	if !doorListContains(refreshedDoors, "news") {
@@ -609,7 +698,7 @@ func TestIntegrationRoomNotificationFanout(t *testing.T) {
 	openDoor(t, ctx, secondConn, "notify")
 	_ = readIntegrationRender(t, ctx, secondConn)
 
-	sendIntegrationAction(t, ctx, firstConn, firstRender.SessionID, "ping-room", "ping_room")
+	sendIntegrationAction(t, ctx, firstConn, firstRender, "ping-room", "ping_room")
 	notify := readIntegrationNotify(t, ctx, secondConn)
 	if notify.Message != "room ping" || notify.Level != "info" {
 		t.Fatalf("room notify = %#v, want info room ping", notify)
@@ -643,7 +732,7 @@ func TestIntegrationBroadcastRerendersRoomStateForPeers(t *testing.T) {
 	openDoor(t, ctx, secondConn, "counter")
 	_ = readIntegrationRender(t, ctx, secondConn)
 
-	sendIntegrationAction(t, ctx, firstConn, firstRender.SessionID, "increment", "increment")
+	sendIntegrationAction(t, ctx, firstConn, firstRender, "increment", "increment")
 	secondUpdate := readIntegrationRender(t, ctx, secondConn)
 	if !uiTreeContainsText(secondUpdate.View, "Count: 1") {
 		t.Fatalf("peer counter render = %#v, want broadcast rerender with room count", secondUpdate.View)
@@ -674,12 +763,12 @@ func TestIntegrationPerUserEventRateLimit(t *testing.T) {
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "rate-target", "rate_target")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "rate-target", "rate_target")
 
 	_ = readIntegrationDoorList(t, ctx, targetConn)
-	sendIntegrationAction(t, ctx, targetConn, targetRender.SessionID, "write-message", "write_message")
-	_ = readIntegrationRender(t, ctx, targetConn)
-	sendIntegrationAction(t, ctx, targetConn, targetRender.SessionID, "write-message", "write_message")
+	sendIntegrationAction(t, ctx, targetConn, targetRender, "write-message", "write_message")
+	targetRender = readIntegrationRender(t, ctx, targetConn)
+	sendIntegrationAction(t, ctx, targetConn, targetRender, "write-message", "write_message")
 	limited := readIntegrationError(t, ctx, targetConn)
 	if limited.Code != string(protocol.ErrorProtocol) || !strings.Contains(limited.Message, "event rate limit exceeded") {
 		t.Fatalf("rate limit error = %#v, want event rate limit rejection", limited)
@@ -727,7 +816,7 @@ func TestIntegrationStateWriteRequiresManifestCapability(t *testing.T) {
 
 	openDoor(t, ctx, conn, "writer")
 	render := readIntegrationRender(t, ctx, conn)
-	sendIntegrationAction(t, ctx, conn, render.SessionID, "write-state", "write_state")
+	sendIntegrationAction(t, ctx, conn, render, "write-state", "write_state")
 	denied := readIntegrationError(t, ctx, conn)
 	if denied.Code != string(protocol.ErrorRuntimeDeniedPolicy) || !strings.Contains(denied.Message, "state:user:write") {
 		t.Fatalf("state write error = %#v, want missing state:user:write rejection", denied)
@@ -752,7 +841,7 @@ func TestIntegrationCaptureKeysDoorReceivesKeyEvents(t *testing.T) {
 
 	openDoor(t, ctx, conn, "keys")
 	render := readIntegrationRender(t, ctx, conn)
-	sendIntegrationKey(t, ctx, conn, render.SessionID, "x")
+	sendIntegrationKey(t, ctx, conn, render, "x")
 	updated := readIntegrationRender(t, ctx, conn)
 	if !uiTreeContainsText(updated.View, "Keys: 1") {
 		t.Fatalf("key capture render = %#v, want key count update", updated.View)
@@ -821,10 +910,10 @@ func TestIntegrationMaintenanceAdminOpFlowsIntoRuntimeContext(t *testing.T) {
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "set-maintenance", "set_maintenance")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "set-maintenance", "set_maintenance")
 
 	_ = readIntegrationDoorList(t, ctx, memberConn)
-	sendIntegrationAction(t, ctx, memberConn, memberRender.SessionID, "write-message", "write_message")
+	sendIntegrationAction(t, ctx, memberConn, memberRender, "write-message", "write_message")
 	updated := readIntegrationRender(t, ctx, memberConn)
 	if !uiTreeContainsText(updated.View, "Maintenance: true") {
 		t.Fatalf("member maintenance render = %#v, want maintenance true", updated.View)
@@ -856,7 +945,7 @@ func TestIntegrationPerUserOpenDoorRateLimit(t *testing.T) {
 	defer adminConn.CloseNow()
 	openDoor(t, ctx, adminConn, "admin")
 	adminRender = readIntegrationRender(t, ctx, adminConn)
-	sendIntegrationAction(t, ctx, adminConn, adminRender.SessionID, "open-rate-target", "open_rate_target")
+	sendIntegrationAction(t, ctx, adminConn, adminRender, "open-rate-target", "open_rate_target")
 
 	_ = readIntegrationDoorList(t, ctx, targetConn)
 	openDoor(t, ctx, targetConn, "profile")
@@ -869,10 +958,14 @@ func TestIntegrationPerUserOpenDoorRateLimit(t *testing.T) {
 }
 
 func newIntegrationHarness(t *testing.T, doorsDir string, admins []string) integrationHarness {
-	return newIntegrationHarnessWithConfig(t, doorsDir, admins, nil)
+	return newIntegrationHarnessWithServerOptions(t, doorsDir, admins, nil, serverOptions{DisconnectGrace: -1})
 }
 
 func newIntegrationHarnessWithConfig(t *testing.T, doorsDir string, admins []string, configure func(*config.NodeConfig)) integrationHarness {
+	return newIntegrationHarnessWithServerOptions(t, doorsDir, admins, configure, serverOptions{DisconnectGrace: -1})
+}
+
+func newIntegrationHarnessWithServerOptions(t *testing.T, doorsDir string, admins []string, configure func(*config.NodeConfig), options serverOptions) integrationHarness {
 	t.Helper()
 
 	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "node.db"))
@@ -900,7 +993,7 @@ func newIntegrationHarnessWithConfig(t *testing.T, doorsDir string, admins []str
 		store.Close()
 		t.Fatalf("LoadDoorManifests() error = %v", err)
 	}
-	server := newServer(cfg, manifests, store)
+	server := newServerWithOptions(cfg, manifests, store, options)
 	httpServer := httptest.NewServer(http.HandlerFunc(server.handleWS))
 	return integrationHarness{
 		server:     server,
@@ -1022,11 +1115,14 @@ func openDoor(t *testing.T, ctx context.Context, conn *websocket.Conn, doorID st
 	}
 }
 
-func sendIntegrationAction(t *testing.T, ctx context.Context, conn *websocket.Conn, sessionID, target, action string) {
+func sendIntegrationAction(t *testing.T, ctx context.Context, conn *websocket.Conn, render protocol.RenderMessage, target, action string) {
 	t.Helper()
 	if err := wsjson.Write(ctx, conn, protocol.EventMessage{
-		Type:      protocol.TypeEvent,
-		SessionID: sessionID,
+		Type:           protocol.TypeEvent,
+		SessionID:      render.SessionID,
+		ActiveDoorID:   render.ActiveDoorID,
+		RenderRevision: render.RenderRevision,
+		EventID:        fmt.Sprintf("test-event-%d", time.Now().UnixNano()),
 		Event: protocol.UIEvent{
 			Kind:   protocol.EventKindAction,
 			Target: target,
@@ -1037,11 +1133,14 @@ func sendIntegrationAction(t *testing.T, ctx context.Context, conn *websocket.Co
 	}
 }
 
-func sendIntegrationKey(t *testing.T, ctx context.Context, conn *websocket.Conn, sessionID, key string) {
+func sendIntegrationKey(t *testing.T, ctx context.Context, conn *websocket.Conn, render protocol.RenderMessage, key string) {
 	t.Helper()
 	if err := wsjson.Write(ctx, conn, protocol.EventMessage{
-		Type:      protocol.TypeEvent,
-		SessionID: sessionID,
+		Type:           protocol.TypeEvent,
+		SessionID:      render.SessionID,
+		ActiveDoorID:   render.ActiveDoorID,
+		RenderRevision: render.RenderRevision,
+		EventID:        fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
 		Event: protocol.UIEvent{
 			Kind: protocol.EventKindKey,
 			Key:  key,
@@ -1319,6 +1418,42 @@ function view(ctx)
     ui.header("`+title+`"),
     ui.text("`+title+` door is active."),
   })
+end
+`)
+}
+
+func writeIntegrationLifecycleDoor(t *testing.T, doorsDir string) {
+	t.Helper()
+	writeTransitionTestDoor(t, doorsDir, "lifecycle", `
+id = "lifecycle"
+name = "Lifecycle"
+entry = "app.lua"
+runtime = "lua"
+capabilities = ["state:user:read", "state:user:write"]
+`, `
+local ui = phosphornet.ui
+
+local function count(ctx, key)
+  return tonumber(ctx.store:get("user", key, 0)) or 0
+end
+
+function view(ctx)
+  return ui.screen({
+    ui.header("Lifecycle door"),
+    ui.text("Joins: " .. tostring(count(ctx, "joins"))),
+    ui.text("Leaves: " .. tostring(count(ctx, "leaves"))),
+    ui.text("Room users: " .. tostring(#((ctx.presence and ctx.presence.room_users) or {}))),
+  })
+end
+
+function on_join(ctx)
+  ctx.store:set("user", "joins", count(ctx, "joins") + 1)
+  return view(ctx)
+end
+
+function on_leave(ctx)
+  ctx.store:set("user", "leaves", count(ctx, "leaves") + 1)
+  return view(ctx)
 end
 `)
 }

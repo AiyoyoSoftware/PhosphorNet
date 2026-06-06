@@ -37,33 +37,35 @@ Future protocol evolution may still need effect-level negotiation when new effec
 
 ### Message Correlation, Idempotency, And Event Ordering
 
-Client-to-node messages such as `hello`, `auth`, `open_door`, `event`, and `close_door`, and node-to-client messages such as `challenge`, `auth_ok`, `auth_denied`, `door_list`, `render`, `notify`, and `error`, still need a clearer ordering and correlation model.
+Addressed on 2026-06-06 for the live client event path. Node render messages
+now include `active_door_id` and a monotonically increasing `render_revision` for
+the session. Client event messages include `session_id`, `active_door_id`,
+`render_revision`, and `event_id`.
 
-Define whether the protocol needs:
+`phosphord` rejects mismatched session or active-door metadata, duplicate
+`event_id` values within a short live-session window, and stale render revisions
+for submit-like events (`action`, `select`, and `submit`). Raw key/focus-style
+events still carry render metadata but are not rejected only because a newer
+render arrived.
 
-- `request_id`
-- event sequence numbers
-- render revisions
-- idempotency keys
-- stale-render rejection behavior
-
-This matters for double submits, reconnects, laggy broadcasts, and repeated input on live TUI sessions.
+Future reconnect and durable session recovery work may still need broader
+message correlation for non-event client requests and node-to-client replies.
 
 ### Reconnect And Session Recovery
 
-Sessions, live registries, presence, `on_join`, `on_leave`, and disconnect cleanup exist, but short connection drops do not yet have a documented continuity model.
+Addressed on 2026-06-06 for alpha behavior.
 
-Questions to answer:
+Current reconnect semantics are intentionally boring:
 
-- Does the user resume the same active door?
-- Does the user resume the same room?
-- Is scroll position restored?
-- Are input drafts restored?
-- Is `on_leave` fired immediately?
-- Is there a grace timeout?
-- Does reconnect suppress join/leave spam?
+- A reconnect creates a new authenticated WebSocket session and a new session ID.
+- A short-drop reconnect may reopen the previous active door if it still exists and the new session can still access it.
+- If the previous door is not safe to reopen, the session starts in `lobby`.
+- Presence remains live-only and in-memory.
+- Scroll position, focus, and input drafts are not restored.
+- `on_leave` runs after a short disconnect grace timeout instead of immediately.
+- Reconnecting inside that grace window cancels the pending `on_leave` and avoids another `on_join` for the recovered door.
 
-This is session continuity, not durable presence, and it will be visible on flaky connections.
+Future durable session recovery could still revisit richer resume behavior, but the public-alpha contract is now defined and tested.
 
 ### Schema Ownership For The JSON UI Contract
 

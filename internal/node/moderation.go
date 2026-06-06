@@ -141,14 +141,15 @@ func (r *sessionRegistry) closePublicKey(ctx context.Context, publicKey, reason 
 	if r == nil || publicKey == "" {
 		return
 	}
-	r.mu.RLock()
+	r.mu.Lock()
 	targets := make([]*sessionState, 0)
 	for _, session := range r.sessions {
 		if session.publicKey == publicKey {
+			session.forceImmediateLeave = true
 			targets = append(targets, session)
 		}
 	}
-	r.mu.RUnlock()
+	r.mu.Unlock()
 	for _, session := range targets {
 		if session.conn == nil {
 			continue

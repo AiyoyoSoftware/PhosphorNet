@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"phosphornet/internal/storage"
 )
@@ -22,6 +23,7 @@ type auditSink struct {
 type serverOptions struct {
 	AuditLogFile     io.Writer
 	AuditLogMaxBytes int64
+	DisconnectGrace  time.Duration
 }
 
 type rotatingAuditFile struct {

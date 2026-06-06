@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -12,16 +13,24 @@ import (
 )
 
 type sessionState struct {
-	id         string
-	publicKey  string
-	role       string
-	activeDoor string
-	roomID     string
-	conn       *websocket.Conn
-	writeMu    sync.Mutex
-	viewMu     sync.RWMutex
-	viewPolicy renderEventPolicy
+	id                  string
+	publicKey           string
+	role                string
+	activeDoor          string
+	roomID              string
+	conn                *websocket.Conn
+	writeMu             sync.Mutex
+	viewMu              sync.RWMutex
+	viewPolicy          renderEventPolicy
+	renderRev           int64
+	eventIDs            map[string]time.Time
+	disconnected        bool
+	disconnectedAt      time.Time
+	disconnectTimer     *time.Timer
+	forceImmediateLeave bool
 }
+
+const sessionEventIDWindow = 2 * time.Minute
 
 func (s *sessionState) write(ctx context.Context, message any) error {
 	s.writeMu.Lock()
@@ -37,17 +46,21 @@ func (s *sessionState) writeRender(ctx context.Context, view protocol.UINode) er
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.viewMu.Lock()
+	s.renderRev++
+	revision := s.renderRev
+	s.viewPolicy = policy
+	s.viewMu.Unlock()
 	if err := wsjson.Write(ctx, s.conn, protocol.RenderMessage{
-		Type:      protocol.TypeRender,
-		SessionID: s.id,
-		View:      view,
+		Type:           protocol.TypeRender,
+		SessionID:      s.id,
+		ActiveDoorID:   s.activeDoor,
+		RenderRevision: revision,
+		View:           view,
 	}); err != nil {
 		return err
 	}
 
-	s.viewMu.Lock()
-	s.viewPolicy = policy
-	s.viewMu.Unlock()
 	return nil
 }
 
@@ -56,6 +69,62 @@ func (s *sessionState) validateEvent(event protocol.UIEvent) error {
 	policy := s.viewPolicy
 	s.viewMu.RUnlock()
 	return validateEventAgainstPolicy(event, policy)
+}
+
+func (s *sessionState) validateEventEnvelope(message protocol.EventMessage, now time.Time) error {
+	if message.SessionID != s.id {
+		return fmt.Errorf("stale or mismatched session id")
+	}
+	if message.ActiveDoorID != s.activeDoor {
+		return fmt.Errorf("stale or mismatched active door id")
+	}
+	if message.EventID == "" {
+		return fmt.Errorf("event id is required")
+	}
+	if message.RenderRevision <= 0 {
+		return fmt.Errorf("render revision is required")
+	}
+	if s.claimEventID(message.EventID, now) {
+		return fmt.Errorf("duplicate event id")
+	}
+	if submitLikeEvent(message.Event.Kind) && message.RenderRevision != s.currentRenderRevision() {
+		return fmt.Errorf("stale render revision")
+	}
+	return nil
+}
+
+func (s *sessionState) currentRenderRevision() int64 {
+	s.viewMu.RLock()
+	defer s.viewMu.RUnlock()
+	return s.renderRev
+}
+
+func (s *sessionState) claimEventID(eventID string, now time.Time) bool {
+	s.viewMu.Lock()
+	defer s.viewMu.Unlock()
+	if s.eventIDs == nil {
+		s.eventIDs = map[string]time.Time{}
+	}
+	cutoff := now.Add(-sessionEventIDWindow)
+	for seenID, seenAt := range s.eventIDs {
+		if seenAt.Before(cutoff) {
+			delete(s.eventIDs, seenID)
+		}
+	}
+	if _, ok := s.eventIDs[eventID]; ok {
+		return true
+	}
+	s.eventIDs[eventID] = now
+	return false
+}
+
+func submitLikeEvent(kind protocol.EventKind) bool {
+	switch kind {
+	case protocol.EventKindAction, protocol.EventKindSelect, protocol.EventKindSubmit:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *sessionState) presenceUser() protocol.PresenceUser {
@@ -79,13 +148,82 @@ func newSessionRegistry() *sessionRegistry {
 func (r *sessionRegistry) add(session *sessionState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	session.disconnected = false
+	session.disconnectedAt = time.Time{}
+	session.disconnectTimer = nil
 	r.sessions[session.id] = session
 }
 
 func (r *sessionRegistry) remove(sessionID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if session, ok := r.sessions[sessionID]; ok && session.disconnectTimer != nil {
+		session.disconnectTimer.Stop()
+	}
 	delete(r.sessions, sessionID)
+}
+
+func (r *sessionRegistry) beginDisconnect(sessionID string, grace time.Duration, onGraceExpired func()) (*sessionState, bool, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[sessionID]
+	if !ok || session.disconnected {
+		return nil, false, false
+	}
+	session.disconnected = true
+	session.disconnectedAt = time.Now()
+	session.conn = nil
+	if session.forceImmediateLeave || grace <= 0 {
+		delete(r.sessions, sessionID)
+		return session, true, true
+	}
+	session.disconnectTimer = time.AfterFunc(grace, onGraceExpired)
+	return session, false, true
+}
+
+func (r *sessionRegistry) removePending(sessionID string) (*sessionState, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[sessionID]
+	if !ok || !session.disconnected {
+		return nil, false
+	}
+	if session.disconnectTimer != nil {
+		session.disconnectTimer.Stop()
+		session.disconnectTimer = nil
+	}
+	delete(r.sessions, sessionID)
+	return session, true
+}
+
+func (r *sessionRegistry) claimPendingReconnect(publicKey string) *sessionState {
+	if publicKey == "" {
+		return nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var claimed *sessionState
+	for _, session := range r.sessions {
+		if !session.disconnected || session.publicKey != publicKey {
+			continue
+		}
+		if claimed == nil || session.disconnectedAt.After(claimed.disconnectedAt) {
+			claimed = session
+		}
+	}
+	if claimed == nil {
+		return nil
+	}
+	if claimed.disconnectTimer != nil {
+		claimed.disconnectTimer.Stop()
+		claimed.disconnectTimer = nil
+	}
+	delete(r.sessions, claimed.id)
+	return claimed
 }
 
 func (r *sessionRegistry) updateDoor(sessionID, doorID string) {
@@ -104,6 +242,9 @@ func (r *sessionRegistry) refreshRoles(roleForPublicKey func(string) string) {
 	defer r.mu.Unlock()
 
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		session.role = roleForPublicKey(session.publicKey)
 	}
 }
@@ -115,6 +256,9 @@ func (r *sessionRegistry) presence(roomID, doorID string) protocol.PresenceSnaps
 	roomUsers := []protocol.PresenceUser{}
 	doorUsers := []protocol.PresenceUser{}
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		if session.roomID == roomID {
 			roomUsers = append(roomUsers, session.presenceUser())
 		}
@@ -134,6 +278,9 @@ func (r *sessionRegistry) allPresence() []protocol.PresenceUser {
 
 	users := []protocol.PresenceUser{}
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		users = append(users, session.presenceUser())
 	}
 	return users
@@ -145,6 +292,9 @@ func (r *sessionRegistry) allSessions() []*sessionState {
 
 	sessions := make([]*sessionState, 0, len(r.sessions))
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		sessions = append(sessions, session)
 	}
 	return sessions
@@ -165,6 +315,9 @@ func (r *sessionRegistry) targets(source *sessionState, doorID string, effect pr
 
 	var sessions []*sessionState
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		switch effect.Scope {
 		case protocol.BroadcastScopeUser:
 			if session.publicKey == effect.UserPublicKey {
@@ -193,6 +346,9 @@ func (r *sessionRegistry) notifyTargets(source *sessionState, doorID string, eff
 
 	var sessions []*sessionState
 	for _, session := range r.sessions {
+		if session.disconnected {
+			continue
+		}
 		switch effect.Target {
 		case protocol.NotifyTargetUser:
 			if session.publicKey == effect.UserPublicKey {

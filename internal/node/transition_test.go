@@ -110,8 +110,11 @@ end
 	}
 
 	if err := wsjson.Write(ctx, conn, protocol.EventMessage{
-		Type:      protocol.TypeEvent,
-		SessionID: initialRender.SessionID,
+		Type:           protocol.TypeEvent,
+		SessionID:      initialRender.SessionID,
+		ActiveDoorID:   initialRender.ActiveDoorID,
+		RenderRevision: initialRender.RenderRevision,
+		EventID:        "transition-profile",
 		Event: protocol.UIEvent{
 			Kind:   protocol.EventKindAction,
 			Target: "open-profile",

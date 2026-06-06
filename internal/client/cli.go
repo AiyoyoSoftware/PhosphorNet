@@ -200,7 +200,7 @@ func newConnectCommand() *cobra.Command {
 				return err
 			}
 
-			model := newTUIModel(conn, authOK, doorList.Doors, render.SessionID, render.View, trustSummary.Status)
+			model := newTUIModel(conn, authOK, doorList.Doors, render, trustSummary.Status)
 			program := tea.NewProgram(model, tea.WithAltScreen())
 			go readLoop(conn, program)
 

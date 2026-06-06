@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -40,6 +42,8 @@ type tuiModel struct {
 	conn              *websocket.Conn
 	auth              protocol.AuthOKMessage
 	sessionID         string
+	activeDoorID      string
+	renderRevision    int64
 	doors             []protocol.DoorSummary
 	selected          int
 	doorScroll        int
@@ -62,31 +66,33 @@ type tuiModel struct {
 	notifyWindowCount int
 }
 
-func newTUIModel(conn *websocket.Conn, auth protocol.AuthOKMessage, doors []protocol.DoorSummary, sessionID string, initial protocol.UINode, status string) tuiModel {
+func newTUIModel(conn *websocket.Conn, auth protocol.AuthOKMessage, doors []protocol.DoorSummary, initialRender protocol.RenderMessage, status string) tuiModel {
 	visibleDoors := filterVisibleDoors(doors)
 	itemSelection := map[string]int{}
 	inputValues := map[string]string{}
-	_, state := RenderComponents(initial, renderOptions{
+	_, state := RenderComponents(initialRender.View, renderOptions{
 		Width:         80,
 		FocusedIndex:  -1,
 		ItemSelection: itemSelection,
 		InputValues:   inputValues,
 	})
 	return tuiModel{
-		conn:          conn,
-		auth:          auth,
-		sessionID:     sessionID,
-		doors:         visibleDoors,
-		selected:      preferredDoorIndex(visibleDoors, "lobby"),
-		currentView:   initial,
-		status:        status,
-		focus:         focusDoors,
-		focusedRemote: 0,
-		remoteState:   state,
-		itemSelection: itemSelection,
-		inputValues:   inputValues,
-		width:         120,
-		height:        32,
+		conn:           conn,
+		auth:           auth,
+		sessionID:      initialRender.SessionID,
+		activeDoorID:   initialRender.ActiveDoorID,
+		renderRevision: initialRender.RenderRevision,
+		doors:          visibleDoors,
+		selected:       preferredDoorIndex(visibleDoors, "lobby"),
+		currentView:    initialRender.View,
+		status:         status,
+		focus:          focusDoors,
+		focusedRemote:  0,
+		remoteState:    state,
+		itemSelection:  itemSelection,
+		inputValues:    inputValues,
+		width:          120,
+		height:         32,
 	}
 }
 
@@ -196,7 +202,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					delete(m.inputValues, event.Target)
 				}
 				m.status = fmt.Sprintf("Sending %s event to %s...", sanitizeChromeText(string(event.Kind)), sanitizeChromeText(event.Target))
-				return m, sendEventCmd(m.conn, m.sessionID, event)
+				return m, sendEventCmd(m.conn, m.sessionID, m.activeDoorID, m.renderRevision, event)
 			}
 			if len(m.doors) == 0 {
 				return m, nil
@@ -217,7 +223,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.status = fmt.Sprintf("Sending %s event to %s...", sanitizeChromeText(string(event.Kind)), sanitizeChromeText(event.Target))
-				return m, sendEventCmd(m.conn, m.sessionID, event)
+				return m, sendEventCmd(m.conn, m.sessionID, m.activeDoorID, m.renderRevision, event)
 			}
 			if len(m.doors) == 0 {
 				return m, nil
@@ -232,20 +238,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.shouldCaptureRemoteKeys() {
 				event := protocol.UIEvent{Kind: protocol.EventKindKey, Key: capturedKey}
 				m.status = fmt.Sprintf("Sending %s event...", sanitizeChromeText(string(event.Kind)))
-				return m, sendEventCmd(m.conn, m.sessionID, event)
+				return m, sendEventCmd(m.conn, m.sessionID, m.activeDoorID, m.renderRevision, event)
 			}
 		default:
 			if m.focus == focusRemote && len(msg.Runes) > 0 {
 				if m.shouldCaptureRemoteKeys() {
 					event := protocol.UIEvent{Kind: protocol.EventKindKey, Key: capturedKey}
 					m.status = fmt.Sprintf("Sending %s event...", sanitizeChromeText(string(event.Kind)))
-					return m, sendEventCmd(m.conn, m.sessionID, event)
+					return m, sendEventCmd(m.conn, m.sessionID, m.activeDoorID, m.renderRevision, event)
 				}
 				m.appendRemoteInput(string(msg.Runes))
 			} else if m.shouldCaptureRemoteKeys() {
 				event := protocol.UIEvent{Kind: protocol.EventKindKey, Key: capturedKey}
 				m.status = fmt.Sprintf("Sending %s event...", sanitizeChromeText(string(event.Kind)))
-				return m, sendEventCmd(m.conn, m.sessionID, event)
+				return m, sendEventCmd(m.conn, m.sessionID, m.activeDoorID, m.renderRevision, event)
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -261,6 +267,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasAtBottom := m.isRemoteScrolledToBottom()
 		wasOpeningDoor := m.openingDoor != ""
 		m.sessionID = msg.SessionID
+		m.activeDoorID = msg.ActiveDoorID
+		m.renderRevision = msg.RenderRevision
 		m.currentView = msg.View
 		if wasOpeningDoor {
 			m.remoteScroll = 0
@@ -941,19 +949,30 @@ func openDoorCmd(conn *websocket.Conn, doorID string) tea.Cmd {
 	}
 }
 
-func sendEventCmd(conn *websocket.Conn, sessionID string, event protocol.UIEvent) tea.Cmd {
+func sendEventCmd(conn *websocket.Conn, sessionID, activeDoorID string, renderRevision int64, event protocol.UIEvent) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := wsjson.Write(ctx, conn, protocol.EventMessage{
-			Type:      protocol.TypeEvent,
-			SessionID: sessionID,
-			Event:     event,
+			Type:           protocol.TypeEvent,
+			SessionID:      sessionID,
+			ActiveDoorID:   activeDoorID,
+			RenderRevision: renderRevision,
+			EventID:        newEventID(),
+			Event:          event,
 		}); err != nil {
 			return errMsg{err: err}
 		}
 		return eventSentMsg{}
 	}
+}
+
+func newEventID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err == nil {
+		return hex.EncodeToString(raw[:])
+	}
+	return fmt.Sprintf("event-%d", time.Now().UnixNano())
 }
 
 func readRawMessage(ctx context.Context, conn *websocket.Conn) (tea.Msg, error) {

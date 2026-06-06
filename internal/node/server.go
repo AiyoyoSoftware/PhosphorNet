@@ -18,16 +18,19 @@ import (
 	"phosphornet/internal/storage"
 )
 
+const defaultSessionDisconnectGrace = 5 * time.Second
+
 type Server struct {
-	cfg           config.NodeConfig
-	doorsMu       sync.RWMutex
-	doors         []runtime.DoorManifest
-	store         *storage.Store
-	sessions      *sessionRegistry
-	events        *eventLog
-	auditLog      *auditSink
-	auditMaxBytes int64
-	rateLimits    *userRateTracker
+	cfg             config.NodeConfig
+	doorsMu         sync.RWMutex
+	doors           []runtime.DoorManifest
+	store           *storage.Store
+	sessions        *sessionRegistry
+	events          *eventLog
+	auditLog        *auditSink
+	auditMaxBytes   int64
+	rateLimits      *userRateTracker
+	disconnectGrace time.Duration
 }
 
 func newServer(cfg config.NodeConfig, doors []runtime.DoorManifest, store *storage.Store) *Server {
@@ -35,15 +38,20 @@ func newServer(cfg config.NodeConfig, doors []runtime.DoorManifest, store *stora
 }
 
 func newServerWithOptions(cfg config.NodeConfig, doors []runtime.DoorManifest, store *storage.Store, options serverOptions) *Server {
+	disconnectGrace := options.DisconnectGrace
+	if disconnectGrace == 0 {
+		disconnectGrace = defaultSessionDisconnectGrace
+	}
 	return &Server{
-		cfg:           cfg,
-		doors:         doors,
-		store:         store,
-		sessions:      newSessionRegistry(),
-		events:        newEventLog(100),
-		auditLog:      &auditSink{file: options.AuditLogFile},
-		auditMaxBytes: options.AuditLogMaxBytes,
-		rateLimits:    newUserRateTracker(),
+		cfg:             cfg,
+		doors:           doors,
+		store:           store,
+		sessions:        newSessionRegistry(),
+		events:          newEventLog(100),
+		auditLog:        &auditSink{file: options.AuditLogFile},
+		auditMaxBytes:   options.AuditLogMaxBytes,
+		rateLimits:      newUserRateTracker(),
+		disconnectGrace: disconnectGrace,
 	}
 }
 
@@ -128,28 +136,22 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	pending := s.sessions.claimPendingReconnect(session.publicKey)
 	session.conn = conn
 	s.sessions.add(session)
 	defer func() {
-		if session.activeDoor != "" {
-			if door, ok := s.findDoor(session.activeDoor); ok {
-				response, err := s.invokeDoorLifecycle(context.Background(), door, session, protocol.LifecycleOnLeave, nil)
-				if err == nil {
-					_ = s.applyDoorEffects(context.Background(), session, door, response, true)
-				}
-			}
-		}
-		s.sessions.remove(session.id)
+		s.beginSessionDisconnect(session)
 	}()
 
 	if err := s.sendDoorList(ctx, session); err != nil {
 		return
 	}
-	if err := s.openDoor(ctx, session, "lobby"); err != nil {
+	initialDoor, suppressJoin := s.initialDoorForReconnect(ctx, session, pending)
+	if err := s.openInitialDoor(ctx, session, initialDoor, suppressJoin); err != nil {
 		_ = session.write(ctx, protocol.NotifyMessage{
 			Type:    protocol.TypeNotify,
 			Level:   "warn",
-			Message: fmt.Sprintf("lobby door failed to render: %v", err),
+			Message: fmt.Sprintf("%s door failed to render: %v", initialDoor, err),
 		})
 		_ = session.writeRender(ctx, s.defaultLobbyView(ctx, session.publicKey))
 	}
@@ -166,6 +168,55 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		if err := s.routeClientMessage(ctx, session, raw); err != nil {
 			_ = session.write(ctx, protocol.ErrorMessageFor(err))
 		}
+	}
+}
+
+func (s *Server) initialDoorForReconnect(ctx context.Context, session *sessionState, pending *sessionState) (string, bool) {
+	if pending == nil || pending.activeDoor == "" {
+		return "lobby", false
+	}
+	if door, ok := s.findDoor(pending.activeDoor); ok && s.canAccessDoor(ctx, session, door) {
+		return pending.activeDoor, true
+	}
+	s.completeSessionLeave(ctx, pending)
+	return "lobby", false
+}
+
+func (s *Server) beginSessionDisconnect(session *sessionState) {
+	if session == nil {
+		return
+	}
+	sessionID := session.id
+	session, immediate, ok := s.sessions.beginDisconnect(sessionID, s.disconnectGrace, func() {
+		s.completePendingDisconnect(sessionID)
+	})
+	if !ok {
+		return
+	}
+	if immediate {
+		s.completeSessionLeave(context.Background(), session)
+	}
+}
+
+func (s *Server) completePendingDisconnect(sessionID string) {
+	session, ok := s.sessions.removePending(sessionID)
+	if !ok {
+		return
+	}
+	s.completeSessionLeave(context.Background(), session)
+}
+
+func (s *Server) completeSessionLeave(ctx context.Context, session *sessionState) {
+	if session == nil || session.activeDoor == "" {
+		return
+	}
+	door, ok := s.findDoor(session.activeDoor)
+	if !ok {
+		return
+	}
+	response, err := s.invokeDoorLifecycle(ctx, door, session, protocol.LifecycleOnLeave, nil)
+	if err == nil {
+		_ = s.applyDoorEffects(ctx, session, door, response, true)
 	}
 }
 

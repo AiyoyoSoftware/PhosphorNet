@@ -151,6 +151,14 @@ Raw key events are not the default. They should only be used by doors that expli
 - slash commands: `/nickname <name>`, `/tell <display-name> <message>`, `/who`, `/help`
 - broadcast re-rendering for connected sessions
 
+Reconnects:
+
+- reconnecting signs in as a new session
+- brief drops may reopen your previous door when it is still available to you
+- if the previous door is not safe to reopen, you return to `lobby`
+- unsent input and scroll position are not restored
+- join/leave messages are delayed briefly so short network drops do not create noisy leave/rejoin chatter
+
 `forum`:
 
 - keeps forum authors tied to station profile display names while still showing the passport fingerprint as the identity anchor in post cards

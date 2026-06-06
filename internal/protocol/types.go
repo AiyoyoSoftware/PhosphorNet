@@ -88,9 +88,11 @@ type OpenDoorMessage struct {
 }
 
 type RenderMessage struct {
-	Type      string `json:"type"`
-	SessionID string `json:"session_id"`
-	View      UINode `json:"view"`
+	Type           string `json:"type"`
+	SessionID      string `json:"session_id"`
+	ActiveDoorID   string `json:"active_door_id"`
+	RenderRevision int64  `json:"render_revision"`
+	View           UINode `json:"view"`
 }
 
 type ErrorMessage struct {
@@ -121,9 +123,12 @@ type NotifyMessage struct {
 }
 
 type EventMessage struct {
-	Type      string  `json:"type"`
-	SessionID string  `json:"session_id"`
-	Event     UIEvent `json:"event"`
+	Type           string  `json:"type"`
+	SessionID      string  `json:"session_id"`
+	ActiveDoorID   string  `json:"active_door_id"`
+	RenderRevision int64   `json:"render_revision"`
+	EventID        string  `json:"event_id"`
+	Event          UIEvent `json:"event"`
 }
 
 type UIEvent struct {

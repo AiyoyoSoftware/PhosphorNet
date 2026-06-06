@@ -17,7 +17,25 @@ func (s *Server) openDoor(ctx context.Context, session *sessionState, doorID str
 }
 
 func (s *Server) openDoorWithBudget(ctx context.Context, session *sessionState, doorID string, transitionBudget int) error {
-	if !(session != nil && session.activeDoor == "" && doorID == "lobby") {
+	return s.openDoorWithOptions(ctx, session, doorID, openDoorOptions{transitionBudget: transitionBudget})
+}
+
+func (s *Server) openInitialDoor(ctx context.Context, session *sessionState, doorID string, suppressJoin bool) error {
+	return s.openDoorWithOptions(ctx, session, doorID, openDoorOptions{
+		transitionBudget: protocol.MaxTransitionsPerResponse,
+		initial:          true,
+		suppressJoin:     suppressJoin,
+	})
+}
+
+type openDoorOptions struct {
+	transitionBudget int
+	initial          bool
+	suppressJoin     bool
+}
+
+func (s *Server) openDoorWithOptions(ctx context.Context, session *sessionState, doorID string, options openDoorOptions) error {
+	if !options.initial {
 		if err := s.enforceOpenRateLimit(ctx, session); err != nil {
 			return err
 		}
@@ -40,7 +58,7 @@ func (s *Server) openDoorWithBudget(ctx context.Context, session *sessionState, 
 		if activeDoor, ok := s.findDoor(session.activeDoor); ok {
 			response, err := s.invokeDoorLifecycle(ctx, activeDoor, session, protocol.LifecycleOnLeave, nil)
 			if err == nil {
-				_ = s.applyDoorEffectsWithBudget(ctx, session, activeDoor, response, true, transitionBudget)
+				_ = s.applyDoorEffectsWithBudget(ctx, session, activeDoor, response, true, options.transitionBudget)
 			}
 		}
 	}
@@ -50,18 +68,20 @@ func (s *Server) openDoorWithBudget(ctx context.Context, session *sessionState, 
 	session.roomID = implicitRoomID(door.ID)
 	s.events.add("door_opened", door.ID, session.publicKey, "opened "+door.ID)
 
-	response, err := s.invokeDoorLifecycle(ctx, door, session, protocol.LifecycleOnJoin, nil)
-	if err != nil {
-		s.events.add("runtime_error", door.ID, session.publicKey, err.Error())
-		return err
+	if !options.suppressJoin {
+		response, err := s.invokeDoorLifecycle(ctx, door, session, protocol.LifecycleOnJoin, nil)
+		if err != nil {
+			s.events.add("runtime_error", door.ID, session.publicKey, err.Error())
+			return err
+		}
+		if err := s.applyDoorEffectsWithBudget(ctx, session, door, response, true, options.transitionBudget); err != nil {
+			return err
+		}
+		if sessionMovedToDifferentDoor(session, door) {
+			return nil
+		}
 	}
-	if err := s.applyDoorEffectsWithBudget(ctx, session, door, response, true, transitionBudget); err != nil {
-		return err
-	}
-	if sessionMovedToDifferentDoor(session, door) {
-		return nil
-	}
-	return s.renderDoorWithBudget(ctx, session, door, transitionBudget)
+	return s.renderDoorWithBudget(ctx, session, door, options.transitionBudget)
 }
 
 func (s *Server) handleDoorEvent(ctx context.Context, session *sessionState, event protocol.UIEvent) error {
