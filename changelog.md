@@ -1,5 +1,10 @@
 # changelog.md
 
+## 2026-06-06 - Test Index
+
+- Added `docs/PhosphorNet_test_index.md` as the release-confidence test index, mapping the current protocol, security, runtime, admin, moderation, audit, and compatibility promises to the tests that cover them.
+- Updated the todo test-matrix section to point at the index and document the remaining high-signal coverage gaps instead of implying the whole matrix is still unimplemented.
+
 ## 2026-06-06 - Dependency Refresh
 
 - Updated Go module dependencies to their latest stable versions selected by `go get -u ./...`.

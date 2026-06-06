@@ -208,9 +208,9 @@ Implementation now includes node-owned ban, unban, mute, unmute, moderation-note
 
 ### Test Matrix And Compatibility Promise
 
-Define what must never regress so the alpha has an explicit confidence checklist.
+The current release-confidence checklist is indexed in `docs/PhosphorNet_test_index.md`.
 
-Cover:
+It maps these promises to the tests that already protect them:
 
 - auth handshake
 - node key pinning
@@ -225,7 +225,7 @@ Cover:
 - first-connect trust behavior
 - client incompatible UI handling
 
-This becomes the compatibility promise and release checklist.
+Keep that index current when adding, moving, or removing tests. Prefer filling the documented gaps over adding duplicate broad integration scaffolding.
 
 ### Bubbles-Backed Client Component Model
 
