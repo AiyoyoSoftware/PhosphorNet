@@ -1,5 +1,11 @@
 # changelog.md
 
+## 2026-06-06 - Dependency Refresh
+
+- Updated Go module dependencies to their latest stable versions selected by `go get -u ./...`.
+- Tidied `go.mod` and `go.sum` after the dependency refresh.
+- Verified the refreshed dependency graph with the full Go test suite.
+
 ## 2026-05-30 - Alpha Audit Trail
 
 - Added a durable SQLite `audit_events` table with timestamp, actor public key/fingerprint, action, target, result, and JSON metadata fields.
