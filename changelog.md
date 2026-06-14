@@ -5,6 +5,7 @@
 - Added `install.sh` with `--client`, `--node`, `--full`, `--uninstall`, and safe `--purge` handling for the default curl-based install route.
 - Added a tag-triggered GitHub Actions release workflow that builds Linux and Windows `phosphor`, `phosphord`, and `switchboard` archives and uploads them as release assets.
 - Added a manual release workflow trigger so missed tag events can still publish an existing tag such as `v0.1`.
+- Fixed manual release publishing so it checks out the workflow branch instead of requiring the release tag to exist before checkout.
 - Standardized installed locations for binaries, bundled doors, node config, and SQLite state under `/usr/local/bin`, `/usr/local/share/phosphornet`, `/etc/phosphornet`, and `/var/lib/phosphornet`.
 - Pointed installer release downloads at `AiyoyoSoftware/PhosphorNet` GitHub release assets, with `PHOSPHORNET_ARTIFACT_URL` available for exact archive testing.
 - Made `phosphord` default to the installed node config while allowing user-level `~/.config/phosphornet` and `~/.local/share/phosphornet` overrides when present.
