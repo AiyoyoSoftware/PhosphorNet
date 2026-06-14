@@ -77,8 +77,20 @@ share_dir="${PHOSPHORNET_SHARE_DIR:-$prefix/share/phosphornet}"
 config_dir="${PHOSPHORNET_CONFIG_DIR:-/etc/phosphornet}"
 state_dir="${PHOSPHORNET_STATE_DIR:-/var/lib/phosphornet}"
 config_path="$config_dir/node.toml"
-admin_passport="${PHOSPHORNET_ADMIN_PASSPORT:-$HOME/.config/phosphornet/passport.toml}"
 station_name="${PHOSPHORNET_STATION_NAME:-localbox}"
+operator_uid="${SUDO_UID:-}"
+operator_gid="${SUDO_GID:-}"
+operator_home=""
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+	operator_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+fi
+if [ -n "${PHOSPHORNET_ADMIN_PASSPORT:-}" ]; then
+	admin_passport="$PHOSPHORNET_ADMIN_PASSPORT"
+elif [ -n "$operator_home" ]; then
+	admin_passport="$operator_home/.config/phosphornet/passport.toml"
+else
+	admin_passport="$HOME/.config/phosphornet/passport.toml"
+fi
 
 using_default_system_paths=false
 if [ "$bin_dir" = "/usr/local/bin" ] || [ "$share_dir" = "/usr/local/share/phosphornet" ] || [ "$config_dir" = "/etc/phosphornet" ] || [ "$state_dir" = "/var/lib/phosphornet" ]; then
@@ -145,6 +157,13 @@ remove_path() {
 		rm -rf "$path"
 	else
 		run_privileged rm -rf "$path"
+	fi
+}
+
+chown_operator_path() {
+	path="$1"
+	if [ -n "$operator_uid" ] && [ -n "$operator_gid" ] && [ -e "$path" ]; then
+		chown -R "$operator_uid:$operator_gid" "$path"
 	fi
 }
 
@@ -293,6 +312,10 @@ case "$mode" in
 		else
 			echo "kept existing $config_path"
 		fi
+		chown_operator_path "$config_path"
+		chown_operator_path "$state_dir"
+		chown_operator_path "$admin_passport"
+		chown_operator_path "$(parent_dir "$admin_passport")"
 		;;
 esac
 

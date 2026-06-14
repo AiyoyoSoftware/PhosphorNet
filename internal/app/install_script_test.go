@@ -85,6 +85,44 @@ func TestInstallScriptNodeModeInstallsNodeAssetsAndConfig(t *testing.T) {
 	}
 }
 
+func TestInstallScriptSudoUserDefaultAdminPassportUsesOperatorHome(t *testing.T) {
+	root := repoRoot(t)
+	artifactDir := fakeArtifactDir(t)
+	installRoot := t.TempDir()
+	binDir := filepath.Join(installRoot, "bin")
+	shareDir := filepath.Join(installRoot, "share", "phosphornet")
+	configDir := filepath.Join(installRoot, "etc", "phosphornet")
+	stateDir := filepath.Join(installRoot, "var", "lib", "phosphornet")
+	operatorHome := t.TempDir()
+
+	cmd := exec.Command("sh", filepath.Join(root, "install.sh"), "--node")
+	cmd.Env = append(os.Environ(),
+		"HOME=/root",
+		"PATH="+fakeGetentDir(t, "stationop", operatorHome)+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"SUDO_USER=stationop",
+		"SUDO_UID="+os.Getenv("UID"),
+		"SUDO_GID="+os.Getenv("GID"),
+		"PHOSPHORNET_ARTIFACT_DIR="+artifactDir,
+		"PHOSPHORNET_BIN_DIR="+binDir,
+		"PHOSPHORNET_SHARE_DIR="+shareDir,
+		"PHOSPHORNET_CONFIG_DIR="+configDir,
+		"PHOSPHORNET_STATE_DIR="+stateDir,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("install.sh sudo-user default passport error = %v\n%s", err, string(output))
+	}
+
+	configData, err := os.ReadFile(filepath.Join(configDir, "node.toml"))
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	want := "admin_passport = \"" + filepath.Join(operatorHome, ".config", "phosphornet", "passport.toml") + "\""
+	if !strings.Contains(string(configData), want) {
+		t.Fatalf("config = %q, want %q", string(configData), want)
+	}
+}
+
 func TestInstallScriptFullModeInstallsAllBinaries(t *testing.T) {
 	root := repoRoot(t)
 	artifactDir := fakeArtifactDir(t)
@@ -196,12 +234,17 @@ func fakeArtifactDir(t *testing.T) string {
 	writeExecutable(t, filepath.Join(dir, "phosphord"), `#!/bin/sh
 if [ "$1" = "init" ]; then
 	out=""
+	admin_passport=""
 	system_paths=false
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
 			--out)
 				shift
 				out="$1"
+				;;
+			--admin-passport)
+				shift
+				admin_passport="$1"
 				;;
 			--system-paths)
 				system_paths=true
@@ -210,7 +253,7 @@ if [ "$1" = "init" ]; then
 		shift
 	done
 	mkdir -p "$(dirname "$out")"
-	printf 'system_paths = %s\n' "$system_paths" > "$out"
+	printf 'system_paths = %s\nadmin_passport = "%s"\n' "$system_paths" "$admin_passport" > "$out"
 	exit 0
 fi
 echo phosphord "$@"
@@ -222,6 +265,13 @@ echo phosphord "$@"
 	if err := os.WriteFile(filepath.Join(doorDir, "manifest.toml"), []byte("id = \"lobby\"\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(manifest) error = %v", err)
 	}
+	return dir
+}
+
+func fakeGetentDir(t *testing.T, username, home string) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "getent"), "#!/bin/sh\nif [ \"$1\" = \"passwd\" ] && [ \"$2\" = \""+username+"\" ]; then\n  echo '"+username+":x:1000:1000:Station Operator:"+home+":/bin/sh'\nfi\n")
 	return dir
 }
 
