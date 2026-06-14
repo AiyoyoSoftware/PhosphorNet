@@ -80,14 +80,12 @@ Client only:
 
 ```bash
 curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --client
-phosphor init
 ```
 
 Station/node:
 
 ```bash
 curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --node
-phosphord serve
 ```
 
 All binaries:
@@ -126,17 +124,65 @@ curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --uninstall
 
 Add `--purge` only when you also want to remove `/etc/phosphornet/node.toml` and `/var/lib/phosphornet/phosphornet.db`.
 
-### Connect
+### Run A Station
 
-After installing the client, connect to a station:
+For a station operator, initialize the node config and start the daemon:
 
 ```bash
+phosphord init
+phosphord serve
+```
+
+The installer runs `phosphord init` for `--node` and `--full` when `/etc/phosphornet/node.toml` does not already exist, so most installed stations can start with `phosphord serve`.
+
+By default, the station listens on:
+
+```text
+wss://127.0.0.1:7707/ws
+```
+
+Health check:
+
+```bash
+curl -k https://127.0.0.1:7707/healthz
+```
+
+Expected response:
+
+```text
+ok
+```
+
+### Use The Client
+
+For an end user, create or reuse a local passport, then connect to a station:
+
+```bash
+phosphor init
 phosphor connect --addr wss://127.0.0.1:7707/ws
 ```
 
 The first connection shows a local trust screen before pinning the station identity.
 
-### Local Development
+### Test Locally
+
+To test both sides on one machine, use two terminals.
+
+Terminal 1:
+
+```bash
+phosphord init
+phosphord serve
+```
+
+Terminal 2:
+
+```bash
+phosphor init
+phosphor connect --addr wss://127.0.0.1:7707/ws
+```
+
+### Source Checkout Development
 
 For development from a source checkout, requirements are:
 
@@ -169,18 +215,6 @@ In another terminal, connect with a disposable local development identity:
 
 ```bash
 go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
-```
-
-Health check:
-
-```bash
-curl -k https://127.0.0.1:7707/healthz
-```
-
-Expected response:
-
-```text
-ok
 ```
 
 ## What Works Today

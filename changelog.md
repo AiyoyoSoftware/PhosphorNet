@@ -9,6 +9,7 @@
 - Fixed release publishing so generated release notes run inside a checked-out repository.
 - Changed `install.sh` to download prebuilt release artifacts by default even when run from a source checkout; source builds now require explicit `PHOSPHORNET_SOURCE_DIR`.
 - Made sudo installs use the invoking user's passport path and chown node config/state back to that operator so `phosphord serve` works without running the daemon as root.
+- Reworked the README quick start around station-operator, end-user, and local-test command flows.
 - Standardized installed locations for binaries, bundled doors, node config, and SQLite state under `/usr/local/bin`, `/usr/local/share/phosphornet`, `/etc/phosphornet`, and `/var/lib/phosphornet`.
 - Pointed installer release downloads at `AiyoyoSoftware/PhosphorNet` GitHub release assets, with `PHOSPHORNET_ARTIFACT_URL` available for exact archive testing.
 - Made `phosphord` default to the installed node config while allowing user-level `~/.config/phosphornet` and `~/.local/share/phosphornet` overrides when present.
