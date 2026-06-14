@@ -8,6 +8,7 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 
+	"phosphornet/internal/app"
 	"phosphornet/internal/identity"
 	"phosphornet/internal/runtime"
 )
@@ -38,8 +39,8 @@ func DefaultNodeConfig() NodeConfig {
 	return NodeConfig{
 		Name:       "localbox",
 		ListenAddr: ":7707",
-		DoorsDir:   "./doors",
-		Database:   "./phosphornet.db",
+		DoorsDir:   app.DefaultDoorsDir(),
+		Database:   app.DefaultDatabasePath(),
 		TLS: TLSConfig{
 			Enabled: true,
 		},
@@ -48,6 +49,30 @@ func DefaultNodeConfig() NodeConfig {
 		},
 		Runtime: runtime.DefaultRuntimeOptions(),
 	}
+}
+
+func DefaultLocalNodeConfig() NodeConfig {
+	cfg := DefaultNodeConfig()
+	cfg.DoorsDir = "./doors"
+	cfg.Database = "./phosphornet.db"
+	return cfg
+}
+
+func DefaultSystemNodeConfig() NodeConfig {
+	cfg := DefaultNodeConfig()
+	cfg.DoorsDir = app.SystemDoorsDir
+	cfg.Database = app.SystemDatabasePath
+	return cfg
+}
+
+func ApplyHomeOverrides(cfg NodeConfig) NodeConfig {
+	if pathExists(app.HomeDoorsDir()) {
+		cfg.DoorsDir = app.HomeDoorsDir()
+	}
+	if pathExists(app.HomeDatabasePath()) {
+		cfg.Database = app.HomeDatabasePath()
+	}
+	return cfg
 }
 
 func LoadNodeConfig(path string) (NodeConfig, error) {
@@ -65,6 +90,11 @@ func LoadNodeConfig(path string) (NodeConfig, error) {
 		return NodeConfig{}, fmt.Errorf("validate node config: %w", err)
 	}
 	return cfg, nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func SaveNodeConfig(path string, cfg NodeConfig) error {

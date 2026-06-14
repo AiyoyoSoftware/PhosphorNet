@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide gets a local PhosphorNet station running from a fresh checkout.
+This guide gets PhosphorNet installed or running from a fresh checkout.
 
 PhosphorNet currently runs as three command-line programs:
 
@@ -14,19 +14,84 @@ For local development, you usually run `phosphord` in one terminal and `phosphor
 
 ## Requirements
 
-Required:
+For installed use:
+
+- A terminal that works well with Bubble Tea alternate-screen programs.
+
+For source checkout development:
 
 - Go matching `go.mod`.
 - A terminal that works well with Bubble Tea alternate-screen programs.
 
-Optional:
+Optional for stations:
 
 - Python 3.11+ for Python doors.
 - SQLite command-line tools if you want to inspect local state directly.
 
 The project uses pure-Go SQLite through `modernc.org/sqlite`, so CGO is not required for the current default path.
 
-## First Local Station
+## Default Installation
+
+Client only:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+phosphor init
+```
+
+Station/node:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --node
+phosphord serve
+```
+
+All binaries:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --full
+```
+
+Set the initial station name during install:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | \
+  PHOSPHORNET_STATION_NAME=localbox sh -s -- --node
+```
+
+The installer uses these default locations:
+
+```text
+/usr/local/bin/phosphor
+/usr/local/bin/phosphord
+/usr/local/bin/switchboard
+/usr/local/share/phosphornet/doors
+/etc/phosphornet/node.toml
+/var/lib/phosphornet/phosphornet.db
+```
+
+Tagged commits that match `v*` build release archives for Linux and Windows:
+
+```text
+phosphornet_linux_amd64.tar.gz
+phosphornet_linux_arm64.tar.gz
+phosphornet_windows_amd64.zip
+phosphornet_windows_arm64.zip
+```
+
+`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to install an exact archive.
+
+`phosphord serve` uses `/etc/phosphornet/node.toml` by default. If a user-level config exists at `~/.config/phosphornet/node.toml`, it is preferred. When using the default config, user-level data under `~/.local/share/phosphornet/doors` or `~/.local/share/phosphornet/phosphornet.db` overrides the system doors/database paths.
+
+Uninstall installed binaries and bundled doors:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --uninstall --full
+```
+
+The safe uninstall path leaves station identity and memory in place. Add `--purge` only when you intentionally want to remove `/etc/phosphornet/node.toml` and `/var/lib/phosphornet/phosphornet.db`.
+
+## First Local Development Station
 
 From the repository root, create a node configuration:
 
@@ -110,13 +175,19 @@ go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
 For a normal local identity, create a passport:
 
 ```bash
-go run ./cmd/phosphor passport create
+phosphor init
+```
+
+From a source checkout:
+
+```bash
+go run ./cmd/phosphor init
 ```
 
 Show its public key and fingerprint:
 
 ```bash
-go run ./cmd/phosphor passport show
+phosphor passport show
 ```
 
 Connect without `--quick`:

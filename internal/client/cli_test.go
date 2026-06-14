@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
@@ -9,6 +10,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,6 +22,43 @@ import (
 	"phosphornet/internal/knownnodes"
 	"phosphornet/internal/protocol"
 )
+
+func TestInitCommandCreatesAndReusesPassport(t *testing.T) {
+	passportPath := filepath.Join(t.TempDir(), "passport.toml")
+	cmd := newInitCommand()
+	cmd.SetArgs([]string{"--passport", passportPath})
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("init command error = %v", err)
+	}
+	if !strings.Contains(output.String(), "created passport") {
+		t.Fatalf("init output = %q, want created passport", output.String())
+	}
+	first, err := os.ReadFile(passportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(passport) error = %v", err)
+	}
+
+	output.Reset()
+	cmd = newInitCommand()
+	cmd.SetArgs([]string{"--passport", passportPath})
+	cmd.SetOut(&output)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("init command reuse error = %v", err)
+	}
+	if !strings.Contains(output.String(), "using existing passport") {
+		t.Fatalf("init reuse output = %q, want using existing passport", output.String())
+	}
+	second, err := os.ReadFile(passportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(passport reuse) error = %v", err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("init command changed existing passport, want reuse")
+	}
+}
 
 func TestPinNodeRejectsChangedKnownNodeKey(t *testing.T) {
 	store := &knownnodes.KnownNodes{}

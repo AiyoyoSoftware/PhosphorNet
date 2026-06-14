@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -36,6 +37,7 @@ func newInitCommand() *cobra.Command {
 		name          string
 		out           string
 		adminPassport string
+		systemPaths   bool
 	)
 
 	cmd := &cobra.Command{
@@ -46,7 +48,7 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg := config.DefaultNodeConfig()
+			cfg := defaultInitNodeConfig(out, cmd.Flags().Changed("out"), systemPaths)
 			cfg.Name = name
 			cfg.NodeID = passport.PublicKey
 			cfg.PrivateKey = passport.PrivateKey
@@ -55,6 +57,12 @@ func newInitCommand() *cobra.Command {
 				return err
 			}
 			cfg.Access.Admins = []string{admin.PublicKey}
+			if err := app.EnsureParentDir(out); err != nil {
+				return err
+			}
+			if err := app.EnsureParentDir(cfg.Database); err != nil {
+				return err
+			}
 			if err := config.SaveNodeConfig(out, cfg); err != nil {
 				return err
 			}
@@ -74,9 +82,24 @@ func newInitCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "localbox", "station display name")
-	cmd.Flags().StringVar(&out, "out", "node.toml", "config path to write")
+	cmd.Flags().StringVar(&out, "out", app.DefaultNodeConfigPath(), "config path to write")
 	cmd.Flags().StringVar(&adminPassport, "admin-passport", app.DefaultPassportPath(), "admin passport path to create or reuse")
+	cmd.Flags().BoolVar(&systemPaths, "system-paths", false, "use system doors and database paths in the generated node config")
 	return cmd
+}
+
+func defaultInitNodeConfig(out string, outChanged bool, systemPaths bool) config.NodeConfig {
+	if systemPaths || (!outChanged && out == app.SystemNodeConfigPath) {
+		return config.DefaultSystemNodeConfig()
+	}
+	if outChanged {
+		cfg := config.DefaultLocalNodeConfig()
+		if dir := filepath.Dir(out); dir != "." && dir != "" {
+			cfg.Database = filepath.Join(dir, app.DefaultDatabaseName)
+		}
+		return cfg
+	}
+	return config.DefaultNodeConfig()
 }
 
 func ensureAdminPassport(path string) (*identity.Passport, bool, error) {
@@ -154,6 +177,9 @@ func newServeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !cmd.Flags().Changed("config") {
+				cfg = config.ApplyHomeOverrides(cfg)
+			}
 
 			doorManifests, err := runtime.LoadDoorManifests(cfg.DoorsDir)
 			if err != nil {
@@ -220,7 +246,7 @@ func newServeCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "node.toml", "node config path")
+	cmd.Flags().StringVar(&configPath, "config", app.DefaultNodeConfigPath(), "node config path")
 	cmd.Flags().StringVar(&auditLogFile, "audit-log-file", "", "optional JSONL file to append audit events to")
 	cmd.Flags().Int64Var(&auditLogMaxBytes, "audit-log-max-bytes", 0, "maximum audit log bytes for SQLite retention and optional file rotation; 0 disables size limiting")
 	cmd.Flags().IntVar(&auditLogMaxBackups, "audit-log-file-max-backups", 5, "number of rotated audit log files to keep when audit log rotation is enabled")

@@ -74,7 +74,71 @@ PhosphorNet is not trying to replace the web. It is for smaller, self-hosted spa
 
 ## Quick Start
 
-### Requirements
+### Install
+
+Client only:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+phosphor init
+```
+
+Station/node:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --node
+phosphord serve
+```
+
+All binaries:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --full
+```
+
+The default installed layout is intentionally boring:
+
+```text
+/usr/local/bin/phosphor
+/usr/local/bin/phosphord
+/usr/local/bin/switchboard
+/usr/local/share/phosphornet/doors
+/etc/phosphornet/node.toml
+/var/lib/phosphornet/phosphornet.db
+```
+
+Tagged releases build Linux and Windows archives:
+
+```text
+phosphornet_linux_amd64.tar.gz
+phosphornet_linux_arm64.tar.gz
+phosphornet_windows_amd64.zip
+phosphornet_windows_arm64.zip
+```
+
+`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to test an exact archive URL.
+
+Uninstall installed binaries and bundled doors:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --uninstall --full
+```
+
+Add `--purge` only when you also want to remove `/etc/phosphornet/node.toml` and `/var/lib/phosphornet/phosphornet.db`.
+
+### Connect
+
+After installing the client, connect to a station:
+
+```bash
+phosphor connect --addr wss://127.0.0.1:7707/ws
+```
+
+The first connection shows a local trust screen before pinning the station identity.
+
+### Local Development
+
+For development from a source checkout, requirements are:
 
 - Go matching the version in `go.mod`
 - A terminal that works well with Bubble Tea alternate-screen programs
@@ -82,8 +146,6 @@ PhosphorNet is not trying to replace the web. It is for smaller, self-hosted spa
 - Optional: SQLite CLI tools for inspecting local state
 
 The default SQLite path uses pure Go SQLite through `modernc.org/sqlite`, so CGO is not required for the normal development path.
-
-### Start a Local Station
 
 From the repository root:
 

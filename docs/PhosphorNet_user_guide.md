@@ -8,6 +8,13 @@ PhosphorNet is a terminal-native network of stations. A station hosts doors. A d
 
 ## Connect To A Station
 
+Install the client and create or reuse your local passport:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+phosphor init
+```
+
 For local development:
 
 ```bash
@@ -17,8 +24,7 @@ go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
 For a persistent identity:
 
 ```bash
-go run ./cmd/phosphor passport create
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws
+phosphor connect --addr wss://127.0.0.1:7707/ws
 ```
 
 The client creates a passport automatically if one does not already exist at the selected passport path.
@@ -30,7 +36,7 @@ A passport is your local Ed25519 identity key.
 Show the current default passport:
 
 ```bash
-go run ./cmd/phosphor passport show
+phosphor passport show
 ```
 
 The public key and fingerprint identify you to nodes. The private key stays on your machine.

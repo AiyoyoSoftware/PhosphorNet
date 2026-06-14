@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"phosphornet/internal/app"
 	"phosphornet/internal/config"
 	"phosphornet/internal/identity"
 	"phosphornet/internal/storage"
@@ -76,5 +77,43 @@ func TestInitCommandSeedsAdminAccessFromPassport(t *testing.T) {
 	disabled := boolMapFromAnyMap(state.Global["disabled_doors"])
 	if !disabled["strategy_demo"] {
 		t.Fatalf("disabled_doors = %#v, want strategy_demo disabled by default", disabled)
+	}
+}
+
+func TestDefaultInitNodeConfigUsesSystemPathsForInstalledDefault(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := defaultInitNodeConfig(app.SystemNodeConfigPath, false, false)
+	if cfg.DoorsDir != app.SystemDoorsDir {
+		t.Fatalf("DoorsDir = %q, want %q", cfg.DoorsDir, app.SystemDoorsDir)
+	}
+	if cfg.Database != app.SystemDatabasePath {
+		t.Fatalf("Database = %q, want %q", cfg.Database, app.SystemDatabasePath)
+	}
+}
+
+func TestDefaultInitNodeConfigUsesLocalDatabaseForExplicitOut(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "node.toml")
+
+	cfg := defaultInitNodeConfig(out, true, false)
+	if cfg.DoorsDir != "./doors" {
+		t.Fatalf("DoorsDir = %q, want ./doors", cfg.DoorsDir)
+	}
+	if want := filepath.Join(dir, "phosphornet.db"); cfg.Database != want {
+		t.Fatalf("Database = %q, want %q", cfg.Database, want)
+	}
+}
+
+func TestDefaultInitNodeConfigSystemPathsFlagWinsForExplicitOut(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "node.toml")
+
+	cfg := defaultInitNodeConfig(out, true, true)
+	if cfg.DoorsDir != app.SystemDoorsDir {
+		t.Fatalf("DoorsDir = %q, want %q", cfg.DoorsDir, app.SystemDoorsDir)
+	}
+	if cfg.Database != app.SystemDatabasePath {
+		t.Fatalf("Database = %q, want %q", cfg.Database, app.SystemDatabasePath)
 	}
 }

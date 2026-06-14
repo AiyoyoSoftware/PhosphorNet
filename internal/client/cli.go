@@ -34,8 +34,38 @@ func NewRootCommand() *cobra.Command {
 		Use:   "phosphor",
 		Short: "Connect to a PhosphorNet station",
 	}
-	root.AddCommand(newPassportCommand(), newConnectCommand())
+	root.AddCommand(newInitCommand(), newPassportCommand(), newConnectCommand())
 	return root
+}
+
+func newInitCommand() *cobra.Command {
+	var passportPath string
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Create or reuse the default local passport",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			created := false
+			if _, err := os.Stat(passportPath); errors.Is(err, os.ErrNotExist) {
+				created = true
+			} else if err != nil {
+				return err
+			}
+			passport, err := ensurePassport(passportPath)
+			if err != nil {
+				return err
+			}
+			if created {
+				fmt.Fprintf(cmd.OutOrStdout(), "created passport at %s\n", passportPath)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "using existing passport at %s\n", passportPath)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "public key: %s\n", passport.PublicKey)
+			fmt.Fprintf(cmd.OutOrStdout(), "fingerprint: %s\n", passport.Fingerprint())
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&passportPath, "passport", app.DefaultPassportPath(), "passport path")
+	return cmd
 }
 
 func newPassportCommand() *cobra.Command {

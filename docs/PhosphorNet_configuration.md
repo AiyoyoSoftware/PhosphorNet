@@ -8,7 +8,23 @@ Configuration is intentionally plain TOML where possible. Secrets such as passpo
 
 ## Node Configuration
 
-Create a starter node config:
+The installed node defaults to:
+
+```text
+/etc/phosphornet/node.toml
+/usr/local/share/phosphornet/doors
+/var/lib/phosphornet/phosphornet.db
+```
+
+`phosphord serve` uses `/etc/phosphornet/node.toml` unless `~/.config/phosphornet/node.toml` exists or `--config` is supplied. When the default config path is used, existing user-level data at `~/.local/share/phosphornet/doors` and `~/.local/share/phosphornet/phosphornet.db` overrides the system doors/database paths.
+
+Install a station/node with:
+
+```bash
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --node
+```
+
+Create a starter node config from a source checkout:
 
 ```bash
 go run ./cmd/phosphord init --name localbox --out node.toml
@@ -75,6 +91,12 @@ Fields:
 | `runtime.lua` | Default Lua sandbox settings. |
 
 Start a node with:
+
+```bash
+phosphord serve
+```
+
+From a source checkout with an explicit local config:
 
 ```bash
 go run ./cmd/phosphord serve --config node.toml

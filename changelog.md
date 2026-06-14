@@ -1,5 +1,16 @@
 # changelog.md
 
+## 2026-06-14 - Installed Layout And Installer Modes
+
+- Added `install.sh` with `--client`, `--node`, `--full`, `--uninstall`, and safe `--purge` handling for the default curl-based install route.
+- Added a tag-triggered GitHub Actions release workflow that builds Linux and Windows `phosphor`, `phosphord`, and `switchboard` archives and uploads them as release assets.
+- Standardized installed locations for binaries, bundled doors, node config, and SQLite state under `/usr/local/bin`, `/usr/local/share/phosphornet`, `/etc/phosphornet`, and `/var/lib/phosphornet`.
+- Pointed installer release downloads at `AiyoyoSoftware/PhosphorNet` GitHub release assets, with `PHOSPHORNET_ARTIFACT_URL` available for exact archive testing.
+- Made `phosphord` default to the installed node config while allowing user-level `~/.config/phosphornet` and `~/.local/share/phosphornet` overrides when present.
+- Added `phosphor init` to create or reuse the default passport as the friendly client setup command.
+- Updated setup, configuration, user, and README docs for the installed route, source-checkout route, uninstall behavior, and default paths.
+- Added tests for installed path resolution, node init path selection, client init passport reuse, and installer install/uninstall modes.
+
 ## 2026-06-06 - Reconnect Session Recovery Semantics
 
 - Defined the public-alpha reconnect rule: reconnects create fresh sessions, briefly reopen the previous door only when it is still safe, otherwise return to `lobby`.
