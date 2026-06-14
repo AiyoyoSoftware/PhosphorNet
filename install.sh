@@ -21,7 +21,7 @@ Environment overrides:
   PHOSPHORNET_STATE_DIR     default: /var/lib/phosphornet
   PHOSPHORNET_ARTIFACT_DIR  directory containing phosphor/phosphord/switchboard and doors/
   PHOSPHORNET_ARTIFACT_URL  exact release archive URL to install
-  PHOSPHORNET_SOURCE_DIR    source checkout to build from when no artifact dir is supplied
+  PHOSPHORNET_SOURCE_DIR    explicit source checkout to build from instead of downloading release artifacts
   PHOSPHORNET_VERSION       release version, default: latest
   PHOSPHORNET_RELEASE_BASE_URL  release asset base URL
   PHOSPHORNET_STATION_NAME  station name for first node config, default: localbox
@@ -80,6 +80,22 @@ config_path="$config_dir/node.toml"
 admin_passport="${PHOSPHORNET_ADMIN_PASSPORT:-$HOME/.config/phosphornet/passport.toml}"
 station_name="${PHOSPHORNET_STATION_NAME:-localbox}"
 
+using_default_system_paths=false
+if [ "$bin_dir" = "/usr/local/bin" ] || [ "$share_dir" = "/usr/local/share/phosphornet" ] || [ "$config_dir" = "/etc/phosphornet" ] || [ "$state_dir" = "/var/lib/phosphornet" ]; then
+	using_default_system_paths=true
+fi
+
+if [ "$using_default_system_paths" = true ] && [ "$(id -u)" -ne 0 ]; then
+	echo "PhosphorNet installs to system paths by default:" >&2
+	echo "  $bin_dir" >&2
+	echo "  $share_dir" >&2
+	echo "  $config_dir" >&2
+	echo "  $state_dir" >&2
+	echo "Re-run as root, for example:" >&2
+	echo "  curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --$mode" >&2
+	exit 1
+fi
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
 	rm -rf "$tmp_dir"
@@ -91,17 +107,7 @@ parent_dir() {
 }
 
 run_privileged() {
-	if "$@"; then
-		return 0
-	fi
-	if [ "$(id -u)" -eq 0 ]; then
-		return 1
-	fi
-	if command -v sudo >/dev/null 2>&1; then
-		sudo "$@"
-		return $?
-	fi
-	return 1
+	"$@"
 }
 
 ensure_dir() {
@@ -256,8 +262,6 @@ if [ -n "${PHOSPHORNET_ARTIFACT_DIR:-}" ]; then
 	artifact_dir="$PHOSPHORNET_ARTIFACT_DIR"
 elif [ -n "${PHOSPHORNET_SOURCE_DIR:-}" ]; then
 	artifact_dir="$(build_from_source "$PHOSPHORNET_SOURCE_DIR" $binaries)"
-elif [ -f "./go.mod" ] && [ -d "./cmd" ]; then
-	artifact_dir="$(build_from_source "." $binaries)"
 else
 	artifact_dir="$(download_release)"
 fi

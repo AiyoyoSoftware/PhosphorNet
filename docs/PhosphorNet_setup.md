@@ -35,28 +35,28 @@ The project uses pure-Go SQLite through `modernc.org/sqlite`, so CGO is not requ
 Client only:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --client
 phosphor init
 ```
 
 Station/node:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --node
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --node
 phosphord serve
 ```
 
 All binaries:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --full
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --full
 ```
 
 Set the initial station name during install:
 
 ```bash
 curl -fsSL https://aiyoyo.org/phosphornet/install.sh | \
-  PHOSPHORNET_STATION_NAME=localbox sh -s -- --node
+  sudo env PHOSPHORNET_STATION_NAME=localbox sh -s -- --node
 ```
 
 The installer uses these default locations:
@@ -79,14 +79,14 @@ phosphornet_windows_amd64.zip
 phosphornet_windows_arm64.zip
 ```
 
-`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to install an exact archive.
+`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to install an exact archive. The installer does not compile from source unless `PHOSPHORNET_SOURCE_DIR` is set explicitly.
 
 `phosphord serve` uses `/etc/phosphornet/node.toml` by default. If a user-level config exists at `~/.config/phosphornet/node.toml`, it is preferred. When using the default config, user-level data under `~/.local/share/phosphornet/doors` or `~/.local/share/phosphornet/phosphornet.db` overrides the system doors/database paths.
 
 Uninstall installed binaries and bundled doors:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --uninstall --full
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --uninstall --full
 ```
 
 The safe uninstall path leaves station identity and memory in place. Add `--purge` only when you intentionally want to remove `/etc/phosphornet/node.toml` and `/var/lib/phosphornet/phosphornet.db`.

@@ -79,21 +79,21 @@ PhosphorNet is not trying to replace the web. It is for smaller, self-hosted spa
 Client only:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --client
 phosphor init
 ```
 
 Station/node:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --node
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --node
 phosphord serve
 ```
 
 All binaries:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --full
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --full
 ```
 
 The default installed layout is intentionally boring:
@@ -116,12 +116,12 @@ phosphornet_windows_amd64.zip
 phosphornet_windows_arm64.zip
 ```
 
-`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to test an exact archive URL.
+`install.sh` downloads the matching Linux tarball from the latest `AiyoyoSoftware/PhosphorNet` GitHub Release by default. Set `PHOSPHORNET_VERSION=v0.1` for an exact tag, or pass `PHOSPHORNET_ARTIFACT_URL` to test an exact archive URL. The installer does not compile from source unless `PHOSPHORNET_SOURCE_DIR` is set explicitly.
 
 Uninstall installed binaries and bundled doors:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --uninstall --full
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --uninstall --full
 ```
 
 Add `--purge` only when you also want to remove `/etc/phosphornet/node.toml` and `/var/lib/phosphornet/phosphornet.db`.

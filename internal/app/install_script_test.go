@@ -41,6 +41,22 @@ func TestInstallScriptDefaultReleaseBasePointsAtGitHubRepository(t *testing.T) {
 	}
 }
 
+func TestInstallScriptDefaultSystemPathsRequireRoot(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can install to default system paths")
+	}
+	root := repoRoot(t)
+	cmd := exec.Command("sh", filepath.Join(root, "install.sh"), "--client")
+	cmd.Env = append(os.Environ(), "HOME="+t.TempDir())
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("install.sh --client with default system paths succeeded as non-root, want safe failure")
+	}
+	if !strings.Contains(string(output), "Re-run as root") {
+		t.Fatalf("install output = %q, want root guidance", string(output))
+	}
+}
+
 func TestInstallScriptNodeModeInstallsNodeAssetsAndConfig(t *testing.T) {
 	root := repoRoot(t)
 	artifactDir := fakeArtifactDir(t)

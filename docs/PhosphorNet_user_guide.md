@@ -11,7 +11,7 @@ PhosphorNet is a terminal-native network of stations. A station hosts doors. A d
 Install the client and create or reuse your local passport:
 
 ```bash
-curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sh -s -- --client
+curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --client
 phosphor init
 ```
 
