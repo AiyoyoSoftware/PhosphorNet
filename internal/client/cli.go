@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -125,20 +127,24 @@ func newConnectCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "connect",
+		Use:   "connect [address]",
 		Short: "Connect to a node and render its JSON UI",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if rawAddress == "" {
-				rawAddress = "wss://127.0.0.1:7707/ws"
+			if len(args) > 0 {
+				if cmd.Flags().Changed("addr") {
+					return fmt.Errorf("use either positional address or --addr, not both")
+				}
+				rawAddress = args[0]
+			}
+			address, err := normalizeWebSocketURL(rawAddress)
+			if err != nil {
+				return err
 			}
 			if quick {
 				passportPath = app.QuickTestPassportPath()
 				knownNodesPath = app.QuickTestKnownNodesPath()
 				fmt.Fprintf(cmd.OutOrStdout(), "quick mode using %s and %s\n", passportPath, knownNodesPath)
-			}
-			address, err := normalizeWebSocketURL(rawAddress)
-			if err != nil {
-				return err
 			}
 
 			passport, err := ensurePassport(passportPath)
@@ -245,6 +251,7 @@ func newConnectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&passportPath, "passport", app.DefaultPassportPath(), "passport path")
 	cmd.Flags().StringVar(&knownNodesPath, "known-nodes", app.DefaultKnownNodesPath(), "known nodes path")
 	cmd.Flags().StringVar(&rawAddress, "addr", "wss://127.0.0.1:7707/ws", "node websocket address")
+	_ = cmd.Flags().MarkDeprecated("addr", "pass the node address as the positional argument: phosphor connect wss://127.0.0.1:7707/ws")
 	cmd.Flags().BoolVar(&quick, "quick", false, "use auto-managed temp passport and known-node files for local testing")
 	cmd.Flags().BoolVar(&replaceKnown, "replace-known-node", false, "replace a changed known-node key for local testing")
 	return cmd
@@ -516,12 +523,37 @@ func pinNode(address, publicKey string, store *knownnodes.KnownNodes, path strin
 }
 
 func normalizeWebSocketURL(rawAddress string) (string, error) {
+	if strings.TrimSpace(rawAddress) == "" {
+		rawAddress = "wss://127.0.0.1:7707/ws"
+	}
+	if !strings.Contains(rawAddress, "://") {
+		rawAddress = "wss://" + rawAddress
+	}
 	parsed, err := url.Parse(rawAddress)
 	if err != nil {
 		return "", fmt.Errorf("parse address: %w", err)
 	}
 	if parsed.Scheme == "" {
 		return "", fmt.Errorf("address must include ws:// or wss://")
+	}
+	if parsed.Scheme != "ws" && parsed.Scheme != "wss" {
+		return "", fmt.Errorf("address must use ws:// or wss://")
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("address must include a host")
+	}
+	if parsed.Port() == "" {
+		host := parsed.Hostname()
+		if host == "" {
+			return "", fmt.Errorf("address must include a host")
+		}
+		parsed.Host = net.JoinHostPort(host, "7707")
+	}
+	switch {
+	case parsed.Path == "" || parsed.Path == "/":
+		parsed.Path = "/ws"
+	case !strings.HasSuffix(parsed.Path, "/ws"):
+		parsed.Path = strings.TrimRight(parsed.Path, "/") + "/ws"
 	}
 	return parsed.String(), nil
 }

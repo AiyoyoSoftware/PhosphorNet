@@ -1,5 +1,11 @@
 # changelog.md
 
+## 2026-06-15 - Friendlier Client Addresses
+
+- Changed `phosphor connect` to accept the station address as an optional positional argument, with `--addr` kept as a deprecated compatibility flag.
+- Added client address normalization so omitted addresses use the local default, bare hosts default to `wss://`, missing ports default to `7707`, and addresses that do not end in `/ws` get `/ws` appended.
+- Updated README, setup, configuration, and user guide examples to use `phosphor connect [address]` and document the shorthand behavior.
+
 ## 2026-06-14 - Installed Layout And Installer Modes
 
 - Added `install.sh` with `--client`, `--node`, `--full`, `--uninstall`, and safe `--purge` handling for the default curl-based install route.

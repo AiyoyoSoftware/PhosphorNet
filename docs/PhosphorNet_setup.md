@@ -161,8 +161,10 @@ On a first connection, the trusted client presents that distinction in a local B
 In another terminal, connect with the client:
 
 ```bash
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
+go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws --quick
 ```
+
+The address may also be a shorthand such as `localhost`; the client expands it to `wss://localhost:7707/ws`. Addresses that do not end in `/ws` get `/ws` appended.
 
 `--quick` is intended for local development. It stores a disposable passport and known-node file under:
 
@@ -193,7 +195,7 @@ phosphor passport show
 Connect without `--quick`:
 
 ```bash
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws
+go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws
 ```
 
 Default local client files live under:
@@ -287,7 +289,7 @@ For real station backup and restore, do not use the local reset list as an opera
 
 Port already in use:
 
-- Edit `listen_addr` in `node.toml`, then reconnect with a matching `--addr`.
+- Edit `listen_addr` in `node.toml`, then reconnect with a matching address argument.
 
 Python door fails to load:
 

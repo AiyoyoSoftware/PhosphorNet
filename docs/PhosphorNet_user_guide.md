@@ -18,14 +18,16 @@ phosphor init
 For local development:
 
 ```bash
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
+go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws --quick
 ```
 
 For a persistent identity:
 
 ```bash
-phosphor connect --addr wss://127.0.0.1:7707/ws
+phosphor connect wss://127.0.0.1:7707/ws
 ```
+
+The address is optional. With no address, `phosphor connect` uses `wss://127.0.0.1:7707/ws`. Bare hosts are expanded for convenience: `phosphor connect localhost` becomes `wss://localhost:7707/ws`, and addresses that do not end in `/ws` get `/ws` appended.
 
 The client creates a passport automatically if one does not already exist at the selected passport path.
 
@@ -45,7 +47,7 @@ You can choose an explicit passport:
 
 ```bash
 go run ./cmd/phosphor connect \
-  --addr wss://127.0.0.1:7707/ws \
+  wss://127.0.0.1:7707/ws \
   --passport ./dev/passport.toml
 ```
 
@@ -232,7 +234,7 @@ If a future feature asks for local authority, it should appear as trusted client
 Connection refused:
 
 - Confirm `phosphord` is running.
-- Confirm the address uses the right port and `/ws` path.
+- Confirm the address uses the right host and port. The client appends `/ws` when the address does not already end with it.
 - Check `curl -k https://127.0.0.1:7707/healthz`.
 
 Node identity changed:

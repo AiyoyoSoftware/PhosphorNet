@@ -444,10 +444,12 @@ Override paths when connecting:
 
 ```bash
 go run ./cmd/phosphor connect \
-  --addr wss://127.0.0.1:7707/ws \
+  wss://127.0.0.1:7707/ws \
   --passport ./dev/passport.toml \
   --known-nodes ./dev/known_nodes.toml
 ```
+
+The address argument may be omitted for the local default, or shortened to a host such as `localhost`. The client expands that to `wss://localhost:7707/ws`, and addresses that do not end in `/ws` get `/ws` appended.
 
 `passport.toml` contains the user's Ed25519 identity key. Do not commit real passports.
 
@@ -457,7 +459,7 @@ For local testing after regenerating a node, replace the stored pin explicitly:
 
 ```bash
 go run ./cmd/phosphor connect \
-  --addr wss://127.0.0.1:7707/ws \
+  wss://127.0.0.1:7707/ws \
   --replace-known-node
 ```
 

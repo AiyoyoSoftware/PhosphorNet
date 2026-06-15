@@ -159,10 +159,12 @@ For an end user, create or reuse a local passport, then connect to a station:
 
 ```bash
 phosphor init
-phosphor connect --addr wss://127.0.0.1:7707/ws
+phosphor connect wss://127.0.0.1:7707/ws
 ```
 
 The first connection shows a local trust screen before pinning the station identity.
+
+The address argument is optional. With no address, `phosphor connect` uses `wss://127.0.0.1:7707/ws`. Bare hosts are expanded for convenience: `phosphor connect localhost` becomes `wss://localhost:7707/ws`, and addresses that do not end in `/ws` get `/ws` appended.
 
 ### Test Locally
 
@@ -179,7 +181,7 @@ Terminal 2:
 
 ```bash
 phosphor init
-phosphor connect --addr wss://127.0.0.1:7707/ws
+phosphor connect wss://127.0.0.1:7707/ws
 ```
 
 ### Source Checkout Development
@@ -214,7 +216,7 @@ wss://127.0.0.1:7707/ws
 In another terminal, connect with a disposable local development identity:
 
 ```bash
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws --quick
+go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws --quick
 ```
 
 ## What Works Today
@@ -284,7 +286,7 @@ go run ./cmd/phosphor passport show
 Connect with the default persistent passport:
 
 ```bash
-go run ./cmd/phosphor connect --addr wss://127.0.0.1:7707/ws
+go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws
 ```
 
 Default client files:
@@ -308,7 +310,7 @@ For local development after regenerating a node:
 
 ```bash
 go run ./cmd/phosphor connect \
-  --addr wss://127.0.0.1:7707/ws \
+  wss://127.0.0.1:7707/ws \
   --replace-known-node
 ```
 

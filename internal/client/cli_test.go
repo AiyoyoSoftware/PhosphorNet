@@ -60,6 +60,70 @@ func TestInitCommandCreatesAndReusesPassport(t *testing.T) {
 	}
 }
 
+func TestNormalizeWebSocketURLExpandsFriendlyAddresses(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "empty default",
+			raw:  "",
+			want: "wss://127.0.0.1:7707/ws",
+		},
+		{
+			name: "bare host",
+			raw:  "localhost",
+			want: "wss://localhost:7707/ws",
+		},
+		{
+			name: "bare host and port",
+			raw:  "localhost:7711",
+			want: "wss://localhost:7711/ws",
+		},
+		{
+			name: "explicit scheme and port",
+			raw:  "ws://localhost:7711",
+			want: "ws://localhost:7711/ws",
+		},
+		{
+			name: "explicit websocket path",
+			raw:  "wss://station.example:9443/ws",
+			want: "wss://station.example:9443/ws",
+		},
+		{
+			name: "path without websocket suffix",
+			raw:  "wss://station.example:9443/custom",
+			want: "wss://station.example:9443/custom/ws",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeWebSocketURL(tt.raw)
+			if err != nil {
+				t.Fatalf("normalizeWebSocketURL(%q) error = %v", tt.raw, err)
+			}
+			if got != tt.want {
+				t.Fatalf("normalizeWebSocketURL(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConnectCommandRejectsAddressArgumentAndDeprecatedFlagTogether(t *testing.T) {
+	cmd := newConnectCommand()
+	cmd.SetArgs([]string{"localhost", "--addr", "wss://127.0.0.1:7707/ws"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("connect command error = nil, want conflict")
+	}
+	if !strings.Contains(err.Error(), "use either positional address or --addr") {
+		t.Fatalf("connect command error = %q, want conflict message", err.Error())
+	}
+}
+
 func TestPinNodeRejectsChangedKnownNodeKey(t *testing.T) {
 	store := &knownnodes.KnownNodes{}
 	path := filepath.Join(t.TempDir(), "known_nodes.toml")
