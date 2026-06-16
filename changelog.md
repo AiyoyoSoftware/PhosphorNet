@@ -1,5 +1,10 @@
 # changelog.md
 
+## 2026-06-16 - README Tone Cleanup
+
+- Revised the README overview and use-case sections to use more direct, product-documentation style language.
+- Replaced apologetic or opinionated phrasing around install layout, MVP limits, moderation scope, and Lua sandbox boundaries with clearer factual wording.
+
 ## 2026-06-15 - Friendlier Client Addresses
 
 - Changed `phosphor connect` to accept the station address as an optional positional argument, with `--addr` kept as a deprecated compatibility flag.

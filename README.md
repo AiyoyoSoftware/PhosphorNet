@@ -2,19 +2,11 @@
 
 **PhosphorNet is a self-hostable platform for interactive terminal apps.**
 
-It is for the space between "SSH into a box and run scripts" and "build a private web app."
+Use it to host terminal-native chat, forums, dashboards, admin panels, games, maintenance tools, and experiments without issuing shell accounts or building a browser app.
 
-A PhosphorNet station can host chat, forums, dashboards, admin panels, games, maintenance tools, and experiments. Users connect with the `phosphor` terminal client using a portable Ed25519 passport identity.
+Users connect to a PhosphorNet station with the `phosphor` terminal client and a portable Ed25519 passport identity. Door code runs on the station. The station sends declarative JSON UI trees over WebSockets. The trusted client renders that UI locally and sends back structured events such as button presses, menu choices, form submissions, and approved key input.
 
-Door code runs on the station. The station sends declarative JSON UI trees over WebSockets. The trusted client renders that UI locally and sends back structured events such as button presses, menu choices, form submissions, and approved key input.
-
-Remote apps do not control your terminal.
-
-The goal is not to recreate the web inside a terminal. The goal is a smaller, inspectable, terminal-native runtime for hosted tools and social spaces where identity, access policy, and data stay close to the station operator.
-
-It does not provide shell access. It provides structured remote apps rendered by a local terminal client.
-
-It has some of the texture of classic BBSes, but the usecases extend beyond nostalgia.
+PhosphorNet provides structured remote interfaces rather than shell sessions or raw terminal output. Its model is close to BBS-style hosted spaces, with modern identity, station-local policy, and SQLite-backed state.
 
 <table>
   <tr>
@@ -44,11 +36,11 @@ It has some of the texture of classic BBSes, but the usecases extend beyond nost
   </tr>
 </table>
 
-## What It Is Good For
+## Use Cases
 
-PhosphorNet is useful when you want people to connect to a shared place from their terminal, without giving them a shell account or building a full web app.
+PhosphorNet is useful when people need to connect to a shared place from their terminal, while the station operator keeps identity, access policy, and data local.
 
-It is a good fit for:
+Common use cases:
 
 - a terminal-based social space for computer clubs, hackerspaces, retrocomputing groups, or technical communities
 - a homelab control panel with status pages, logs, notes, and maintenance actions
@@ -58,7 +50,7 @@ It is a good fit for:
 - admin panels for services that should not have a public browser UI
 - prototypes for safer remote interfaces where the server does not control the user's terminal
 
-For example, instead of exposing a web dashboard for a home server, you could run a PhosphorNet station. Trusted users connect with `phosphor`, open doors for status, logs, chat, or admin tasks, and the station keeps its data and access rules local.
+A home server can expose a PhosphorNet station for trusted users. They connect with `phosphor`, open doors for status, logs, chat, or admin tasks, and the station applies local data and access rules.
 
 The currently shipped doors include:
 
@@ -68,9 +60,7 @@ The currently shipped doors include:
 - `forum`: board-style threads and replies
 - `admin`: station settings, door controls, user moderation, logs, and maintenance tools
 
-The important idea is simple: the station runs the apps, but your own terminal client draws the screen. The station sends structured UI, not raw terminal commands, so a door can offer buttons, forms, lists, and text without taking over your terminal.
-
-PhosphorNet is not trying to replace the web. It is for smaller, self-hosted spaces where the terminal is the front door, identity is portable, and apps can be simple scripts instead of websites.
+The station runs the doors. The local terminal client draws the screen. Doors return structured UI instead of raw terminal commands, so they can offer buttons, forms, lists, and text while the client keeps control of the terminal.
 
 ## Quick Start
 
@@ -94,7 +84,7 @@ All binaries:
 curl -fsSL https://aiyoyo.org/phosphornet/install.sh | sudo sh -s -- --full
 ```
 
-The default installed layout is intentionally boring:
+The default installed layout:
 
 ```text
 /usr/local/bin/phosphor
@@ -234,14 +224,14 @@ PhosphorNet is in MVP / public-alpha preparation. The core loop works today:
 - bundled lobby, profile, chat, forum, and admin doors
 - station and door access controls, including admin-only and invite-only modes
 
-Some parts are still MVP-grade:
+Current limitations:
 
 - the switchboard is only a scaffold
 - only `open_door` transitions are implemented end-to-end
 - rooms are currently implicit per door
 - presence is live and in-memory
 - reconnects create a fresh session; brief drops may reopen the last safe door, but scroll position and input drafts are not restored
-- the Lua sandbox is useful hardening rather than complete hostile-code isolation
+- the Lua sandbox provides configurable hardening, not complete hostile-code isolation
 
 ## Architecture
 
@@ -326,7 +316,7 @@ Use that only when you intentionally replaced the station identity.
 | `forum` | Classic board-style forum with threads, replies, drafts, pinned welcome content, and moderation actions. |
 | `admin` | Admin-only Station Admin console for doors, users, access control, storage summaries, runtime info, logs, notices, maintenance mode, and manifest reloads. |
 
-Public-station survival primitives are documented separately in `docs/PhosphorNet_public_station_moderation.md`. Advanced reputation systems are out of scope, but local station policy now covers bans, mutes, door freezes, maintenance notices, content hide/delete, per-user event/open-door rate limits, moderation notes, and abuse-relevant activity review.
+Public-station moderation primitives are documented separately in `docs/PhosphorNet_public_station_moderation.md`. Local station policy covers bans, mutes, door freezes, maintenance notices, content hide/delete, per-user event/open-door rate limits, moderation notes, and abuse-relevant activity review.
 
 ## Client Controls
 
@@ -494,7 +484,7 @@ The current client contract is designed so stations and doors do not get authori
 
 The trusted client renders remote UI locally, sanitizes text, bounds render trees, and keeps station chrome separate from door content.
 
-Lua doors run with configurable sandbox profiles. The strict profile avoids filesystem and process libraries. This is an MVP hardening layer, not a promise that arbitrary hostile code is safe to run without additional isolation.
+Lua doors run with configurable sandbox profiles. The strict profile avoids filesystem and process libraries. Use stronger process or container isolation for untrusted code.
 
 Door manifest `capabilities = [...]` remain PhosphorNet protocol authority: they control which structured effects a door may ask `phosphord` to perform. Host resources such as filesystem, network, process, memory, CPU, and container image selection belong under `[isolation]`, not under capabilities.
 
