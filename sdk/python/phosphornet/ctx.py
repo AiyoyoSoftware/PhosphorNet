@@ -105,6 +105,7 @@ class DoorEffects:
         self.transitions: list[dict] = []
         self.profile_updates: list[dict] = []
         self.admin_ops: list[dict] = []
+        self.actions: list[dict] = []
 
     def set_state(self, scope: str, key: str, value):
         if self.owner is not None:
@@ -165,6 +166,12 @@ class DoorEffects:
 
     def admin_op(self, op: dict):
         self.admin_ops.append(dict(op))
+
+    def action(self, rule_id: str, request_id: str, input=None):
+        effect = {"rule_id": rule_id, "request_id": request_id}
+        if input is not None:
+            effect["input"] = input
+        self.actions.append(effect)
 
 
 @dataclass

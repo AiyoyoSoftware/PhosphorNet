@@ -21,6 +21,8 @@ const (
 	EventKindSubmit EventKind = "submit"
 	EventKindKey    EventKind = "key"
 	EventKindFocus  EventKind = "focus"
+	// EventKindActionResult is node-generated and is never accepted from a client.
+	EventKindActionResult EventKind = "action_result"
 )
 
 type StateScope string
@@ -240,6 +242,24 @@ type TransitionEffect struct {
 	RoomID string         `json:"room_id,omitempty"`
 }
 
+type ActionEffect struct {
+	RequestID string `json:"request_id"`
+	RuleID    string `json:"rule_id"`
+	Input     any    `json:"input,omitempty"`
+}
+
+type ActionResult struct {
+	RequestID string `json:"request_id"`
+	RuleID    string `json:"rule_id"`
+	OK        bool   `json:"ok"`
+	ExitCode  int    `json:"exit_code"`
+	Stdout    string `json:"stdout,omitempty"`
+	Stderr    string `json:"stderr,omitempty"`
+	Error     string `json:"error,omitempty"`
+	TimedOut  bool   `json:"timed_out,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
 type ProfileUpdateEffect struct {
 	DisplayName *string `json:"display_name,omitempty"`
 	Bio         *string `json:"bio,omitempty"`
@@ -280,6 +300,7 @@ type RuntimeResponse struct {
 	Broadcasts      []BroadcastEffect     `json:"broadcasts,omitempty"`
 	Notifies        []NotifyEffect        `json:"notifies,omitempty"`
 	Transitions     []TransitionEffect    `json:"transitions,omitempty"`
+	Actions         []ActionEffect        `json:"actions,omitempty"`
 	ProfileUpdates  []ProfileUpdateEffect `json:"profile_updates,omitempty"`
 	AdminOps        []AdminOp             `json:"admin_ops,omitempty"`
 	Error           *RuntimeError         `json:"error,omitempty"`

@@ -126,6 +126,27 @@ Prefer semantic `action`, `select`, and `submit` events. Raw `key` delivery
 requires `screen.capture_keys = true` and the manifest capability
 `capture_keys`; trusted client shortcuts still take precedence.
 
+`phosphord` may also call `update` with an internal `action_result` event after
+a requested host action completes. This kind is node-generated and cannot be
+sent by a client:
+
+```lua
+{
+  kind = "action_result",
+  action_result = {
+    request_id = "status-1",
+    rule_id = "host-status",
+    ok = true,
+    exit_code = 0,
+    stdout = "ready\n",
+    stderr = "",
+    timed_out = false,
+    truncated = false,
+    error = nil,
+  }
+}
+```
+
 ## UI Constructors
 
 All constructors return ordinary Lua tables. A door can add supported fields to
@@ -345,6 +366,25 @@ implemented end to end in the current MVP and requires `transition:open_door`.
 ```lua
 ctx.effects:transition("open_door", "chat")
 ```
+
+### Host Actions
+
+```lua
+ctx.effects:action(rule_id, request_id, input?)
+```
+
+This requests one fixed `phosphor-actiond` rule. It is valid only from
+`update`, requires the manifest capability `action:<rule_id>`, and is also
+checked against the rule's `allowed_doors` list. `input` must be JSON-shaped
+and is written to the command's stdin; it never changes the configured argv.
+
+```lua
+ctx.effects:action("host-status", "status-1", {format = "short"})
+```
+
+Handle the node-generated result event described above and correlate it with
+`request_id`. One action is allowed per runtime response, with a bounded chain
+of action callbacks.
 
 ### Profile Updates
 

@@ -122,6 +122,7 @@ notify:user
 notify:all
 capture_keys
 transition:open_door
+action:<rule-id>
 admin:read_station
 admin:read_users
 admin:read_doors
@@ -682,6 +683,72 @@ Current transition behavior is partial:
 
 - `open_door` transitions already work and are applied by `phosphord`.
 - Other declared transition kinds are still future work and should not be treated as fully implemented.
+
+Host actions are fixed commands owned by the station operator and executed by the separate `phosphor-actiond` process. A door requests a rule by ID; it never supplies executable or argument text.
+
+Lua:
+
+```lua
+ctx.effects.action("host-status", "status-1", {format = "short"})
+```
+
+Python:
+
+```python
+ctx.effects.action("host-status", "status-1", {"format": "short"})
+```
+
+The manifest needs `action:host-status`, and the actiond rule must independently include the door ID in `allowed_doors`. The optional input is serialized as JSON to the fixed command's stdin.
+
+The result returns through a node-generated `action_result` update:
+
+```lua
+function update(ctx, event)
+  if event.kind == "action_result" and event.action_result.request_id == "status-1" then
+    local result = event.action_result
+    if result.ok then
+      ctx.store:set("user", "last_status", result.stdout)
+    else
+      ctx.effects.notify(result.error or "Action failed", "error")
+    end
+    return view(ctx)
+  end
+
+  if event.action == "run_status" then
+    ctx.effects.action("host-status", "status-1", {format = "short"})
+  end
+  return view(ctx)
+end
+```
+
+Action effects are accepted only from `update`, one per response. `phosphord` bounds callback chains, and actiond caps execution time and captured output. Treat stdout and stderr as untrusted command output before presenting them in the UI.
+
+For doors with multiple actions, map semantic UI actions to fixed rule IDs in door code. Never take a rule ID from `event.values`, a text input, or another user-controlled field:
+
+```lua
+local choices = {
+  run_uptime = {rule_id = "demo-uptime", selection = "uptime"},
+  run_disk_usage = {rule_id = "demo-disk-usage", selection = "disk_usage"},
+}
+
+function update(ctx, event)
+  if event.kind == "action_result" then
+    -- Correlate event.action_result.request_id and handle bounded output.
+    return view(ctx)
+  end
+
+  local choice = choices[event.action or ""]
+  if choice then
+    ctx.effects.action(choice.rule_id, "tools:" .. choice.selection, {
+      source = "tools",
+      selection = choice.selection,
+    })
+  end
+  return view(ctx)
+end
+```
+
+The shipped `doors/action_demo/` door is the complete version of this pattern. It demonstrates three typed choices, result persistence, failure display, and UI output clipping, and bundles its matching rules as `doors/action_demo/actiond.example.toml`. It starts disabled; copy or activate those rules as described in `docs/PhosphorNet_configuration.md` before enabling it.
 
 ## Presence
 

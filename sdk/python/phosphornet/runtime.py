@@ -70,6 +70,7 @@ async def _invoke_namespace(namespace: dict, request: dict):
         "transitions": door_ctx.effects.transitions,
         "profile_updates": door_ctx.effects.profile_updates,
         "admin_ops": door_ctx.effects.admin_ops,
+        "actions": door_ctx.effects.actions,
     }
 
 

@@ -1,19 +1,38 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-const (
-	DefaultPassportName   = "passport.toml"
-	DefaultKnownNodeName  = "known_nodes.toml"
-	DefaultNodeConfigName = "node.toml"
-	DefaultDatabaseName   = "phosphornet.db"
+func ExpandUserPath(path string) (string, error) {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home directory: %w", err)
+	}
+	if path == "~" {
+		return home, nil
+	}
+	return filepath.Join(home, strings.TrimPrefix(path, "~/")), nil
+}
 
-	SystemNodeConfigPath = "/etc/phosphornet/node.toml"
-	SystemDoorsDir       = "/usr/local/share/phosphornet/doors"
-	SystemDatabasePath   = "/var/lib/phosphornet/phosphornet.db"
+const (
+	DefaultPassportName      = "passport.toml"
+	DefaultKnownNodeName     = "known_nodes.toml"
+	DefaultNodeConfigName    = "node.toml"
+	DefaultActiondConfigName = "actiond.toml"
+	DefaultDatabaseName      = "phosphornet.db"
+
+	SystemNodeConfigPath    = "/etc/phosphornet/node.toml"
+	SystemActiondConfigPath = "/etc/phosphornet/actiond.toml"
+	SystemActiondSocketPath = "/run/phosphornet/actiond.sock"
+	SystemDoorsDir          = "/usr/local/share/phosphornet/doors"
+	SystemDatabasePath      = "/var/lib/phosphornet/phosphornet.db"
 )
 
 func ConfigDir() string {
@@ -56,6 +75,14 @@ func HomeNodeConfigPath() string {
 	return filepath.Join(ConfigDir(), DefaultNodeConfigName)
 }
 
+func HomeActiondConfigPath() string {
+	return filepath.Join(ConfigDir(), DefaultActiondConfigName)
+}
+
+func HomeActiondSocketPath() string {
+	return filepath.Join(DataDir(), "actiond.sock")
+}
+
 func HomeDoorsDir() string {
 	return filepath.Join(DataDir(), "doors")
 }
@@ -69,6 +96,13 @@ func DefaultNodeConfigPath() string {
 		return HomeNodeConfigPath()
 	}
 	return SystemNodeConfigPath
+}
+
+func DefaultActiondConfigPath() string {
+	if pathExists(HomeActiondConfigPath()) {
+		return HomeActiondConfigPath()
+	}
+	return SystemActiondConfigPath
 }
 
 func DefaultDoorsDir() string {

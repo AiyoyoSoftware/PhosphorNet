@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
@@ -23,6 +24,7 @@ type NodeConfig struct {
 	TLS        TLSConfig              `toml:"tls"`
 	Access     StationAccessConfig    `toml:"access"`
 	Runtime    runtime.RuntimeOptions `toml:"runtime"`
+	Actiond    ActiondConfig          `toml:"actiond"`
 }
 
 type TLSConfig struct {
@@ -33,6 +35,12 @@ type StationAccessConfig struct {
 	Mode      string   `toml:"mode"`
 	Allowlist []string `toml:"allowlist"`
 	Admins    []string `toml:"admins"`
+}
+
+type ActiondConfig struct {
+	Enabled          bool   `toml:"enabled"`
+	Socket           string `toml:"socket"`
+	RequestTimeoutMS int    `toml:"request_timeout_ms"`
 }
 
 func DefaultNodeConfig() NodeConfig {
@@ -48,6 +56,11 @@ func DefaultNodeConfig() NodeConfig {
 			Mode: "public",
 		},
 		Runtime: runtime.DefaultRuntimeOptions(),
+		Actiond: ActiondConfig{
+			Enabled:          true,
+			Socket:           app.SystemActiondSocketPath,
+			RequestTimeoutMS: 10_000,
+		},
 	}
 }
 
@@ -55,6 +68,7 @@ func DefaultLocalNodeConfig() NodeConfig {
 	cfg := DefaultNodeConfig()
 	cfg.DoorsDir = "./doors"
 	cfg.Database = "./phosphornet.db"
+	cfg.Actiond.Socket = app.HomeActiondSocketPath()
 	return cfg
 }
 
@@ -81,10 +95,22 @@ func LoadNodeConfig(path string) (NodeConfig, error) {
 		return NodeConfig{}, fmt.Errorf("read node config: %w", err)
 	}
 	cfg := DefaultNodeConfig()
+	defaultActiondSocket := app.SystemActiondSocketPath
+	if filepath.Clean(path) != filepath.Clean(app.SystemNodeConfigPath) {
+		defaultActiondSocket = app.HomeActiondSocketPath()
+		cfg.Actiond.Socket = defaultActiondSocket
+	}
 	decoder := toml.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
 		return NodeConfig{}, fmt.Errorf("parse node config: %w", err)
+	}
+	if cfg.Actiond.Enabled && strings.TrimSpace(cfg.Actiond.Socket) == "" {
+		cfg.Actiond.Socket = defaultActiondSocket
+	}
+	cfg.Actiond.Socket, err = app.ExpandUserPath(cfg.Actiond.Socket)
+	if err != nil {
+		return NodeConfig{}, fmt.Errorf("expand actiond socket path: %w", err)
 	}
 	if err := validateNodeConfig(cfg); err != nil {
 		return NodeConfig{}, fmt.Errorf("validate node config: %w", err)
@@ -126,6 +152,12 @@ func validateNodeConfig(cfg NodeConfig) error {
 	}
 	if err := runtime.ValidateLuaSandboxConfig(cfg.Runtime.Lua); err != nil {
 		return fmt.Errorf("runtime.lua: %w", err)
+	}
+	if cfg.Actiond.RequestTimeoutMS < 0 || cfg.Actiond.RequestTimeoutMS > 60_000 {
+		return fmt.Errorf("actiond.request_timeout_ms must be between 0 and 60000")
+	}
+	if cfg.Actiond.Socket != "" && !filepath.IsAbs(cfg.Actiond.Socket) {
+		return fmt.Errorf("actiond.socket must be an absolute path")
 	}
 	passport := &identity.Passport{
 		DisplayName: cfg.Name,

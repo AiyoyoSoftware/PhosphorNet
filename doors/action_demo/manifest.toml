@@ -1,0 +1,12 @@
+id = "action_demo"
+name = "Action Workshop"
+entry = "app.lua"
+runtime = "lua"
+
+capabilities = [
+  "state:user:read",
+  "state:user:write",
+  "action:demo-uptime",
+  "action:demo-disk-usage",
+  "action:demo-kernel-version",
+]

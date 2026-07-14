@@ -171,6 +171,7 @@ Every runtime invocation returns one typed response envelope.
   "broadcasts": [],
   "notifies": [],
   "transitions": [],
+  "actions": [],
   "admin_ops": []
 }
 ```
@@ -247,6 +248,46 @@ Current MVP transition support:
 
 - `open_door` is implemented and lets one door hand off to another.
 - `close_door` and `room` remain declared contract shapes, but are not yet full end-to-end MVP behavior.
+
+### Host Actions
+
+Actions delegate a fixed, operator-defined host command to `phosphor-actiond`. They are allowed only from `update` responses and a response may request at most one action.
+
+```json
+{
+  "request_id": "status-1",
+  "rule_id": "host-status",
+  "input": {"format": "short"}
+}
+```
+
+The door manifest must declare the rule-specific capability:
+
+```toml
+capabilities = ["action:host-status"]
+```
+
+`phosphord` validates that capability, sends a `phosphornet.action.v1` JSON request over the configured Unix socket, and never executes the command itself. `phosphor-actiond` performs a second authorization check against the rule's explicit `allowed_doors` list.
+
+When execution finishes or the daemon is unavailable, `phosphord` invokes the same door's `update` again with a node-generated event. Clients cannot submit this event kind.
+
+```json
+{
+  "kind": "action_result",
+  "action_result": {
+    "request_id": "status-1",
+    "rule_id": "host-status",
+    "ok": true,
+    "exit_code": 0,
+    "stdout": "ready\n",
+    "stderr": "",
+    "timed_out": false,
+    "truncated": false
+  }
+}
+```
+
+Transport failures and command failures are returned with `ok = false` and an `error` string so the door can render or persist a useful result. Callback responses may request another action, but `phosphord` bounds the chain to four executions. Action requests and outcomes are recorded in the durable audit trail without copying command stdout or stderr into audit metadata.
 
 ### Admin Ops
 

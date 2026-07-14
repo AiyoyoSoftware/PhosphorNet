@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/json"
 	"fmt"
 	"unicode/utf8"
 )
@@ -13,6 +14,27 @@ func ValidateRuntimeResponse(response RuntimeResponse) error {
 	}
 	if response.View.Component != "screen" {
 		return fmt.Errorf("runtime response view root must be screen, got %q", response.View.Component)
+	}
+	if len(response.Actions) > MaxActionsPerResponse {
+		return fmt.Errorf("runtime response has %d actions, max %d", len(response.Actions), MaxActionsPerResponse)
+	}
+	for index, action := range response.Actions {
+		if action.RequestID == "" {
+			return fmt.Errorf("runtime response actions[%d].request_id is required", index)
+		}
+		if action.RuleID == "" {
+			return fmt.Errorf("runtime response actions[%d].rule_id is required", index)
+		}
+		if len(action.RequestID) > 128 {
+			return fmt.Errorf("runtime response actions[%d].request_id exceeds 128 bytes", index)
+		}
+		input, err := json.Marshal(action.Input)
+		if err != nil {
+			return fmt.Errorf("runtime response actions[%d].input is not JSON encodable: %w", index, err)
+		}
+		if len(input) > MaxActionInputJSONBytes {
+			return fmt.Errorf("runtime response actions[%d].input exceeds %d bytes", index, MaxActionInputJSONBytes)
+		}
 	}
 	return ValidateUINode(response.View)
 }

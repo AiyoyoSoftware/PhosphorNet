@@ -14,6 +14,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"phosphornet/internal/action"
 	"phosphornet/internal/config"
 	"phosphornet/internal/identity"
 	"phosphornet/internal/protocol"
@@ -27,6 +28,76 @@ type integrationHarness struct {
 	wsURL      string
 	store      *storage.Store
 	node       *identity.Passport
+}
+
+type integrationActionExecutor struct {
+	requests chan action.Request
+	response action.Response
+}
+
+func (e *integrationActionExecutor) Execute(_ context.Context, request action.Request) (action.Response, error) {
+	e.requests <- request
+	response := e.response
+	response.ProtocolVersion = action.ProtocolVersion
+	response.RequestID = request.RequestID
+	response.RuleID = request.RuleID
+	return response, nil
+}
+
+func TestIntegrationDoorActionRoundTripReturnsOutputToDoor(t *testing.T) {
+	ctx := context.Background()
+	doorsDir := t.TempDir()
+	writeTransitionTestDoor(t, doorsDir, "lobby", `
+id = "lobby"
+name = "Lobby"
+entry = "app.lua"
+capabilities = ["state:user:read", "state:user:write", "action:host-status"]
+`, `
+local ui = phosphornet.ui
+local function render_view(ctx)
+  return ui.screen({
+    ui.text(ctx.store:get("user", "action_output", "not run")),
+    ui.button("run-status", "Run", "run_status"),
+  })
+end
+function update(ctx, event)
+  if event.kind == "action_result" then
+    ctx.store:set("user", "action_output", event.action_result.stdout)
+  elseif event.action == "run_status" then
+    ctx.effects.action("host-status", "status-1", {format = "short"})
+  end
+  return render_view(ctx)
+end
+function view(ctx) return render_view(ctx) end
+`)
+	executor := &integrationActionExecutor{
+		requests: make(chan action.Request, 1),
+		response: action.Response{OK: true, ExitCode: 0, Stdout: "station ready"},
+	}
+	h := newIntegrationHarnessWithServerOptions(t, doorsDir, nil, nil, serverOptions{
+		DisconnectGrace: -1,
+		ActionExecutor:  executor,
+	})
+	defer h.close()
+	passport, err := identity.Generate("traveler")
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	conn, render := connectIntegrationClient(t, ctx, h.wsURL, passport)
+	defer conn.CloseNow()
+	sendIntegrationAction(t, ctx, conn, render, "run-status", "run_status")
+	resultRender := readIntegrationRender(t, ctx, conn)
+	if !uiTreeContainsText(resultRender.View, "station ready") {
+		t.Fatalf("result render = %#v, want action output", resultRender.View)
+	}
+	select {
+	case request := <-executor.requests:
+		if request.RuleID != "host-status" || request.DoorID != "lobby" || request.RequestID != "status-1" {
+			t.Fatalf("action request = %#v", request)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("phosphord did not delegate action")
+	}
 }
 
 func TestIntegrationCompatibleClientAuthRendersLobbyAndPersistsState(t *testing.T) {

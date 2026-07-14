@@ -132,11 +132,12 @@ type EventMessage struct {
 }
 
 type UIEvent struct {
-	Kind   EventKind         `json:"kind"`
-	Target string            `json:"target,omitempty"`
-	Action string            `json:"action,omitempty"`
-	Key    string            `json:"key,omitempty"`
-	Values map[string]string `json:"values,omitempty"`
+	Kind         EventKind         `json:"kind"`
+	Target       string            `json:"target,omitempty"`
+	Action       string            `json:"action,omitempty"`
+	Key          string            `json:"key,omitempty"`
+	Values       map[string]string `json:"values,omitempty"`
+	ActionResult *ActionResult     `json:"action_result,omitempty"`
 }
 
 type UINode struct {

@@ -1,0 +1,26 @@
+# Copy these rules into the actiond.toml used by phosphor-actiond, or run this
+# complete example file directly after confirming the executable paths below.
+socket = "~/.local/share/phosphornet/actiond.sock"
+max_request_bytes = 65536
+max_output_bytes = 65536
+
+[[rules]]
+id = "demo-uptime"
+allowed_doors = ["action_demo"]
+command = ["/usr/bin/uptime"]
+timeout_ms = 3000
+environment = { LANG = "C" }
+
+[[rules]]
+id = "demo-disk-usage"
+allowed_doors = ["action_demo"]
+command = ["/bin/df", "-h", "/"]
+timeout_ms = 3000
+environment = { LANG = "C" }
+
+[[rules]]
+id = "demo-kernel-version"
+allowed_doors = ["action_demo"]
+command = ["/usr/bin/uname", "-sr"]
+timeout_ms = 3000
+environment = { LANG = "C" }

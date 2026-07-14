@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"phosphornet/internal/action"
 	"phosphornet/internal/identity"
 	"phosphornet/internal/protocol"
 	"phosphornet/internal/runtime"
@@ -109,29 +110,144 @@ func (s *Server) handleDoorEvent(ctx context.Context, session *sessionState, eve
 		s.events.add("runtime_error", door.ID, session.publicKey, err.Error())
 		return err
 	}
-	if err := s.applyDoorEffectsWithBudget(ctx, session, door, response, true, protocol.MaxTransitionsPerResponse); err != nil {
-		return err
+	responses := make([]runtime.DoorResponse, 0, protocol.MaxActionChain+1)
+	for actionDepth := 0; ; actionDepth++ {
+		responses = append(responses, response)
+		if err := s.applyDoorEffectsWithBudget(ctx, session, door, response, true, protocol.MaxTransitionsPerResponse); err != nil {
+			return err
+		}
+		if sessionMovedToDifferentDoor(session, door) {
+			return nil
+		}
+		if responseReloadsManifests(response) {
+			refreshedDoor, ok := s.findDoor(door.ID)
+			if !ok {
+				return fmt.Errorf("active door %q is not available after manifest reload", door.ID)
+			}
+			door = refreshedDoor
+		}
+		if len(response.Actions) == 0 {
+			break
+		}
+		if actionDepth >= protocol.MaxActionChain {
+			return protocol.NewCodedError(protocol.ErrorRuntimeResourceLimit, "action callback chain exhausted", nil)
+		}
+		result := s.executeDoorAction(ctx, session, door, response.Actions[0])
+		response, err = s.invokeDoorUpdate(ctx, door, session, protocol.UIEvent{
+			Kind:         protocol.EventKindActionResult,
+			ActionResult: &result,
+		})
+		if err != nil {
+			s.events.add("runtime_error", door.ID, session.publicKey, err.Error())
+			return err
+		}
 	}
-	if sessionMovedToDifferentDoor(session, door) {
-		return nil
-	}
-	if responseReloadsManifests(response) {
+	if anyResponseReloadsManifests(responses) {
 		refreshedDoor, ok := s.findDoor(door.ID)
 		if !ok {
 			return fmt.Errorf("active door %q is not available after manifest reload", door.ID)
 		}
 		return s.renderDoor(ctx, session, refreshedDoor)
 	}
-	if door.ID == adminDoorID && responseUpdatesDoorSettings(response) {
+	if door.ID == adminDoorID && anyResponseUpdatesDoorSettings(responses) {
 		if err := s.renderSessionsWithDoorSettings(ctx, session); err != nil {
 			return err
 		}
 		return s.renderDoor(ctx, session, door)
 	}
-	if responseUpdatesProfile(response) {
+	if anyResponseUpdatesProfile(responses) {
 		return s.renderDoor(ctx, session, door)
 	}
 	return session.writeRender(ctx, response.View)
+}
+
+func (s *Server) executeDoorAction(ctx context.Context, session *sessionState, door runtime.DoorManifest, effect protocol.ActionEffect) protocol.ActionResult {
+	result := protocol.ActionResult{
+		RequestID: effect.RequestID,
+		RuleID:    effect.RuleID,
+		ExitCode:  -1,
+	}
+	if s.actionExecutor == nil {
+		result.Error = "phosphor-actiond is not configured"
+		s.recordDoorAction(ctx, session, door, result)
+		return result
+	}
+	timeoutMS := s.cfg.Actiond.RequestTimeoutMS
+	if timeoutMS == 0 {
+		timeoutMS = 10_000
+	}
+	actionCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
+	defer cancel()
+	response, err := s.actionExecutor.Execute(actionCtx, action.Request{
+		ProtocolVersion: action.ProtocolVersion,
+		RequestID:       effect.RequestID,
+		RuleID:          effect.RuleID,
+		DoorID:          door.ID,
+		User: action.User{
+			PublicKey:   session.publicKey,
+			Fingerprint: identity.Fingerprint(session.publicKey),
+			Role:        session.role,
+		},
+		Input: effect.Input,
+	})
+	if err != nil {
+		result.Error = err.Error()
+		result.TimedOut = actionCtx.Err() == context.DeadlineExceeded
+		s.recordDoorAction(ctx, session, door, result)
+		return result
+	}
+	result.OK = response.OK
+	result.ExitCode = response.ExitCode
+	result.Stdout = response.Stdout
+	result.Stderr = response.Stderr
+	result.Error = response.Error
+	result.TimedOut = response.TimedOut
+	result.Truncated = response.Truncated
+	s.recordDoorAction(ctx, session, door, result)
+	return result
+}
+
+func (s *Server) recordDoorAction(ctx context.Context, session *sessionState, door runtime.DoorManifest, result protocol.ActionResult) {
+	status := "failed"
+	if result.OK {
+		status = "succeeded"
+	}
+	s.events.add("action_"+status, door.ID, session.publicKey, fmt.Sprintf("action %s %s", result.RuleID, status))
+	s.audit(ctx, auditEvent(session.publicKey, "action.executed", door.ID, status, map[string]any{
+		"request_id": result.RequestID,
+		"rule_id":    result.RuleID,
+		"exit_code":  result.ExitCode,
+		"timed_out":  result.TimedOut,
+		"truncated":  result.Truncated,
+		"error":      result.Error,
+	}))
+}
+
+func anyResponseReloadsManifests(responses []runtime.DoorResponse) bool {
+	for _, response := range responses {
+		if responseReloadsManifests(response) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyResponseUpdatesDoorSettings(responses []runtime.DoorResponse) bool {
+	for _, response := range responses {
+		if responseUpdatesDoorSettings(response) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyResponseUpdatesProfile(responses []runtime.DoorResponse) bool {
+	for _, response := range responses {
+		if responseUpdatesProfile(response) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) renderSessionsWithDoorSettings(ctx context.Context, source *sessionState) error {
@@ -269,6 +385,13 @@ func (s *Server) invokeDoorLifecycle(parent context.Context, door runtime.DoorMa
 			"lifecycle": string(lifecycle),
 		}))
 		return runtime.DoorResponse{}, protocol.NewCodedError(protocol.ErrorRuntimeDeniedPolicy, err.Error(), err)
+	}
+	if lifecycle != protocol.LifecycleUpdate && len(response.Actions) > 0 {
+		message := fmt.Sprintf("action effects are only allowed from update, got %q", lifecycle)
+		s.audit(ctx, auditEvent(session.publicKey, "effect.denied", door.ID, "denied", map[string]any{
+			"reason": message,
+		}))
+		return runtime.DoorResponse{}, protocol.NewCodedError(protocol.ErrorRuntimeDeniedPolicy, message, nil)
 	}
 	if err := s.store.ApplyStateOps(ctx, door.ID, scopeIDs, session.role, response.StateOps); err != nil {
 		return runtime.DoorResponse{}, protocol.NewCodedError(protocol.ErrorStorage, err.Error(), err)

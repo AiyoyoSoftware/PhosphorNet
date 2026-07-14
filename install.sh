@@ -9,8 +9,8 @@ Usage:
 
 Modes:
   --client  install phosphor only
-  --node    install phosphord, bundled doors, and node state/config
-  --full    install phosphor, phosphord, switchboard, bundled doors, and node state/config
+  --node    install phosphord, phosphor-actiond, bundled doors, and node state/config
+  --full    install phosphor, phosphord, phosphor-actiond, switchboard, bundled doors, and node state/config
   --uninstall  remove installed binaries and bundled doors
   --purge      with --uninstall, also remove node config and database state
 
@@ -19,7 +19,7 @@ Environment overrides:
   PHOSPHORNET_SHARE_DIR     default: /usr/local/share/phosphornet
   PHOSPHORNET_CONFIG_DIR    default: /etc/phosphornet
   PHOSPHORNET_STATE_DIR     default: /var/lib/phosphornet
-  PHOSPHORNET_ARTIFACT_DIR  directory containing phosphor/phosphord/switchboard and doors/
+  PHOSPHORNET_ARTIFACT_DIR  directory containing phosphor/phosphord/phosphor-actiond/switchboard and doors/
   PHOSPHORNET_ARTIFACT_URL  exact release archive URL to install
   PHOSPHORNET_SOURCE_DIR    explicit source checkout to build from instead of downloading release artifacts
   PHOSPHORNET_VERSION       release version, default: latest
@@ -77,6 +77,7 @@ share_dir="${PHOSPHORNET_SHARE_DIR:-$prefix/share/phosphornet}"
 config_dir="${PHOSPHORNET_CONFIG_DIR:-/etc/phosphornet}"
 state_dir="${PHOSPHORNET_STATE_DIR:-/var/lib/phosphornet}"
 config_path="$config_dir/node.toml"
+actiond_config_path="$config_dir/actiond.toml"
 station_name="${PHOSPHORNET_STATION_NAME:-localbox}"
 operator_uid="${SUDO_UID:-}"
 operator_gid="${SUDO_GID:-}"
@@ -249,8 +250,8 @@ artifact_binary() {
 binaries=""
 case "$mode" in
 	client) binaries="phosphor" ;;
-	node) binaries="phosphord" ;;
-	full) binaries="phosphor phosphord switchboard" ;;
+	node) binaries="phosphord phosphor-actiond" ;;
+	full) binaries="phosphor phosphord phosphor-actiond switchboard" ;;
 esac
 
 if [ "$uninstall" = true ]; then
@@ -264,12 +265,13 @@ if [ "$uninstall" = true ]; then
 			echo "removed $share_dir/doors"
 			if [ "$purge" = true ]; then
 				remove_path "$config_path"
+				remove_path "$actiond_config_path"
 				remove_path "$state_dir/phosphornet.db"
 				remove_path "$state_dir/phosphornet.db-shm"
 				remove_path "$state_dir/phosphornet.db-wal"
-				echo "purged $config_path and $state_dir/phosphornet.db"
+				echo "purged $config_path, $actiond_config_path, and $state_dir/phosphornet.db"
 			else
-				echo "kept $config_path and $state_dir/phosphornet.db"
+				echo "kept $config_path, $actiond_config_path, and $state_dir/phosphornet.db"
 			fi
 			;;
 	esac

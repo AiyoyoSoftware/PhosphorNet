@@ -30,7 +30,7 @@ Create a starter node config from a source checkout:
 go run ./cmd/phosphord init --name localbox --out node.toml
 ```
 
-`phosphord init` creates or reuses a local admin passport, writes its public key into `access.admins`, and seeds the default station policy in SQLite. Fresh stations start with `strategy_demo` disabled until an admin explicitly enables it from the Station Admin door. By default, the admin passport path is:
+`phosphord init` creates or reuses a local admin passport, writes its public key into `access.admins`, and seeds the default station policy in SQLite. Fresh stations start with `strategy_demo` and the operator-configured `action_demo` disabled until an admin explicitly enables them from the Station Admin door. By default, the admin passport path is:
 
 ```text
 ~/.config/phosphornet/passport.toml
@@ -71,6 +71,11 @@ call_stack_size = 120
 registry_size = 20480
 registry_max_size = 81920
 registry_grow_step = 32
+
+[actiond]
+enabled = true
+socket = "~/.local/share/phosphornet/actiond.sock"
+request_timeout_ms = 10000
 ```
 
 Fields:
@@ -89,6 +94,9 @@ Fields:
 | `access.admins` | Public keys or fingerprints that authenticate as station admins. |
 | `runtime.default_runtime` | Runtime used when a manifest does not specify one. |
 | `runtime.lua` | Default Lua sandbox settings. |
+| `actiond.enabled` | Enables action delegation. Defaults to `true`; set to `false` to disable it explicitly. |
+| `actiond.socket` | Unix socket for `phosphor-actiond`. Local configs default to `~/.local/share/phosphornet/actiond.sock`; the system config defaults to `/run/phosphornet/actiond.sock`. |
+| `actiond.request_timeout_ms` | Node-side deadline for an action request. Defaults to 10 seconds when omitted. |
 
 Start a node with:
 
@@ -127,6 +135,123 @@ Audit events are always appended to SQLite in `audit_events`. `--audit-log-file`
 ```
 
 With the default `[tls].enabled = true`, those endpoints are served as `wss://.../ws` and `https://.../healthz`. The TLS certificate is self-signed and transport-only; station identity still comes from the signed Ed25519 node challenge and known-node pinning.
+
+## Host Action Configuration
+
+`phosphor-actiond` is optional and uses its own TOML file. Installed and user-level defaults are:
+
+```text
+/etc/phosphornet/actiond.toml
+~/.config/phosphornet/actiond.toml
+```
+
+Create a repository-local starter file:
+
+```bash
+go run ./cmd/phosphor-actiond init --out ./actiond.toml
+```
+
+Example `actiond.toml`:
+
+```toml
+socket = "/run/phosphornet/actiond.sock"
+max_request_bytes = 65536
+max_output_bytes = 65536
+
+[[rules]]
+id = "host-status"
+allowed_doors = ["tools"]
+command = ["/usr/bin/uptime", "--pretty"]
+timeout_ms = 3000
+environment = { LANG = "C" }
+
+[[rules]]
+id = "refresh-cache"
+allowed_doors = ["admin_tools"]
+command = ["/usr/local/libexec/phosphornet-refresh-cache"]
+timeout_ms = 10000
+working_dir = "/var/lib/phosphornet"
+```
+
+Start actiond before enabling doors that use it:
+
+```bash
+phosphor-actiond serve --config /etc/phosphornet/actiond.toml
+phosphord serve --config /etc/phosphornet/node.toml
+```
+
+For a source checkout:
+
+```bash
+go run ./cmd/phosphor-actiond serve --config ./actiond.toml
+```
+
+Each rule has these fields:
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable lowercase rule ID used by the door effect and capability. |
+| `allowed_doors` | Required explicit door IDs. Wildcards are rejected. |
+| `command` | Required argv array. The executable must be an absolute path. No shell is inserted. |
+| `timeout_ms` | Per-execution deadline; default 5000, maximum 60000. |
+| `working_dir` | Optional absolute working directory. |
+| `environment` | Optional explicit environment entries. The default environment contains only `PATH=/usr/bin:/bin`. |
+
+If shell syntax is required, the operator must opt into it explicitly, for example `command = ["/bin/sh", "-c", "/usr/bin/uptime | /usr/bin/cut -c1-80"]`. Door input is never interpolated into that string or appended to argv. The JSON value from the door's action effect is written to command stdin followed by a newline.
+
+The configured program is responsible for how it interprets stdin. Do not write action scripts that pass door JSON to `eval`, a shell command substitution, or another command parser. Prefer a small program that decodes the expected JSON object, validates typed fields, and performs one narrow operation.
+
+Authorization has two required gates:
+
+1. The door manifest declares `capabilities = ["action:host-status"]`, which `phosphord` checks.
+2. The actiond rule declares `allowed_doors = ["tools"]`, which `phosphor-actiond` checks independently.
+
+The `phosphornet.action.v1` JSON request and response travel over the configured Unix socket. The socket is created with mode `0660`; its owner/group permissions are the local caller-authentication boundary. Run `phosphord` and `phosphor-actiond` under appropriately scoped service accounts or a shared group. Do not expose this socket through a network proxy.
+
+Actiond caps stdout and stderr separately at `max_output_bytes` (maximum 1 MiB), caps requests at `max_request_bytes` (maximum 1 MiB), reports truncation and timeouts, and kills the command process group on Linux when a deadline expires. `phosphord` returns success or failure to the requesting door as a node-generated `action_result` update and records outcome metadata in the audit trail without logging stdout or stderr.
+
+### Configure The Bundled Action Workshop
+
+The bundled `action_demo` door is disabled by default. It demonstrates three useful, fixed choices without accepting rule IDs, commands, or argv from the client. A complete, strictly validated example travels with the door at `doors/action_demo/actiond.example.toml`. Copy its rules into the actiond config you operate, or use it directly after confirming its socket and executable paths:
+
+```bash
+phosphor-actiond serve --config doors/action_demo/actiond.example.toml
+```
+
+The bundled file uses `~/.local/share/phosphornet/actiond.sock`, so this command works as an ordinary user. Both `phosphor-actiond` and `phosphord` expand a leading `~/` in `actiond.socket`. The equivalent explicit node setting is:
+
+```toml
+[actiond]
+enabled = true
+socket = "~/.local/share/phosphornet/actiond.sock"
+request_timeout_ms = 10000
+```
+
+For a local `node.toml`, this is also the node's default even when an older generated config has an empty actiond socket, so no node config edit is required. Restart `phosphord` after upgrading so it loads the default. Root-managed system services continue to use `/run/phosphornet/actiond.sock` instead. Set `enabled = false` when the node must not delegate actions.
+
+The bundled file contains:
+
+```toml
+[[rules]]
+id = "demo-uptime"
+allowed_doors = ["action_demo"]
+command = ["/usr/bin/uptime"]
+timeout_ms = 3000
+
+[[rules]]
+id = "demo-disk-usage"
+allowed_doors = ["action_demo"]
+command = ["/bin/df", "-h", "/"]
+timeout_ms = 3000
+
+[[rules]]
+id = "demo-kernel-version"
+allowed_doors = ["action_demo"]
+command = ["/usr/bin/uname", "-sr"]
+timeout_ms = 3000
+```
+
+Start both daemons with the same socket, then enable Action Workshop from Station Admin. Installed releases retain the example alongside the door under the configured doors directory. The door's three manifest capabilities exactly match these IDs. Its Lua source keeps a fixed `UI action → rule ID` table, sends a small typed JSON object on stdin, correlates `action_result`, and clips command output before putting it in the UI.
 
 ## Station Access
 

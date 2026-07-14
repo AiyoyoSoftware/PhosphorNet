@@ -19,4 +19,7 @@ const (
 	MaxStateBatchJSONBytes     = 256 * 1024
 	MaxScopedStateJSONBytes    = 512 * 1024
 	MaxTransitionsPerResponse  = 4
+	MaxActionsPerResponse      = 1
+	MaxActionChain             = 4
+	MaxActionInputJSONBytes    = 64 * 1024
 )

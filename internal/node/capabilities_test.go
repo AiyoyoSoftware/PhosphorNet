@@ -59,6 +59,18 @@ func TestGlobalStateWriteRequiresRoleAndCapability(t *testing.T) {
 	}
 }
 
+func TestActionEffectsRequireRuleSpecificCapability(t *testing.T) {
+	response := runtime.DoorResponse{Actions: []protocol.ActionEffect{{RequestID: "request-1", RuleID: "status"}}}
+	door := runtime.DoorManifest{ID: "tools"}
+	if err := validateResponseCapabilities(&sessionState{role: "member"}, door, response); err == nil {
+		t.Fatal("validateResponseCapabilities() error = nil, want action capability rejection")
+	}
+	door.Capabilities = []string{runtime.ActionCapability("status")}
+	if err := validateResponseCapabilities(&sessionState{role: "member"}, door, response); err != nil {
+		t.Fatalf("validateResponseCapabilities() error = %v, want action capability accepted", err)
+	}
+}
+
 func TestLoadStationPolicyMigratesLegacyAdminGlobalState(t *testing.T) {
 	ctx := context.Background()
 	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "node.db"))

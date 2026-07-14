@@ -1,5 +1,15 @@
 # changelog.md
 
+## 2026-07-14 - phosphor-actiond Host Action Delegation
+
+- Added the separate `phosphor-actiond` executable with strict TOML rule loading, fixed absolute command argv, explicit per-rule door allowlists, a minimal configured environment, JSON stdin, per-rule deadlines, bounded stdout/stderr, Linux process-group termination, and a versioned Unix-socket JSON protocol.
+- Made actiond socket paths support leading-`~/` expansion in both actiond and node configs, changed the bundled Action Workshop rules to a non-root user socket under `~/.local/share/phosphornet`, and made that socket the automatic default for local node configs, including older configs with an empty actiond socket. System configs retain `/run/phosphornet`, `actiond.enabled = false` explicitly disables delegation, and startup logs now show the selected socket only after actiond has actually bound it.
+- Added `[actiond]` node configuration and the typed door `actions` effect. `phosphord` now requires a rule-specific `action:<rule-id>` manifest capability, delegates allowed requests to actiond, audits outcomes without command output, and returns structured results through node-generated `action_result` door updates with a bounded callback chain.
+- Added matching Lua and Python SDK helpers plus runtime response validation for one action per update response and bounded JSON input.
+- Added the bundled, default-disabled Action Workshop door with three fixed semantic choices, exact `action:demo-*` capabilities, structured JSON input, correlated result handling, per-user result state, failure presentation, UI output clipping, and a directly loadable `doors/action_demo/actiond.example.toml` that ships with the door. Added matching operator guidance and a safe multi-action door-authoring pattern.
+- Added focused rule/runner/socket tests, capability and manifest tests, Lua request/result tests, and a full WebSocket integration test covering `door → phosphord → actiond executor → door` output flow.
+- Added `phosphor-actiond` to node/full installs and release artifacts, and documented architecture, configuration, security boundaries, action authoring, the Lua API, setup, test coverage, and remaining service-unit packaging work.
+
 ## 2026-07-14 - Lua Door API Reference
 
 - Added a dedicated Lua door API reference covering lifecycle hooks, context

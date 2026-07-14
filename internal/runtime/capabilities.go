@@ -44,6 +44,8 @@ const (
 	CapabilityAdminModerateUsers    = "admin:moderate_users"
 )
 
+const CapabilityActionPrefix = "action:"
+
 var knownCapabilities = map[string]bool{
 	CapabilityStateUserRead:         true,
 	CapabilityStateUserWrite:        true,
@@ -143,11 +145,34 @@ func NormalizeCapabilities(capabilities []string, permissions []string) []string
 
 func ValidateCapabilities(capabilities []string) error {
 	for _, capability := range capabilities {
+		if strings.HasPrefix(capability, CapabilityActionPrefix) {
+			if validActionRuleID(strings.TrimPrefix(capability, CapabilityActionPrefix)) {
+				continue
+			}
+			return fmt.Errorf("invalid action capability %q", capability)
+		}
 		if !knownCapabilities[capability] {
 			return fmt.Errorf("unknown capability %q", capability)
 		}
 	}
 	return nil
+}
+
+func ActionCapability(ruleID string) string {
+	return CapabilityActionPrefix + ruleID
+}
+
+func validActionRuleID(value string) bool {
+	if value == "" || len(value) > 64 {
+		return false
+	}
+	for index, char := range value {
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || index > 0 && (char == '.' || char == '_' || char == '-') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func HasCapability(capabilities []string, capability string) bool {

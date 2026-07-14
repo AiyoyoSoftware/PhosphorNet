@@ -71,6 +71,7 @@ func TestInstallScriptNodeModeInstallsNodeAssetsAndConfig(t *testing.T) {
 		t.Fatalf("install output missing completion line:\n%s", output)
 	}
 	assertFileExists(t, filepath.Join(binDir, "phosphord"))
+	assertFileExists(t, filepath.Join(binDir, "phosphor-actiond"))
 	assertFileMissing(t, filepath.Join(binDir, "phosphor"))
 	assertFileMissing(t, filepath.Join(binDir, "switchboard"))
 	assertFileExists(t, filepath.Join(shareDir, "doors", "lobby", "manifest.toml"))
@@ -135,6 +136,7 @@ func TestInstallScriptFullModeInstallsAllBinaries(t *testing.T) {
 	runInstallScript(t, root, artifactDir, binDir, shareDir, configDir, stateDir, "--full")
 	assertFileExists(t, filepath.Join(binDir, "phosphor"))
 	assertFileExists(t, filepath.Join(binDir, "phosphord"))
+	assertFileExists(t, filepath.Join(binDir, "phosphor-actiond"))
 	assertFileExists(t, filepath.Join(binDir, "switchboard"))
 	assertFileExists(t, filepath.Join(shareDir, "doors", "lobby", "manifest.toml"))
 	assertFileExists(t, filepath.Join(configDir, "node.toml"))
@@ -189,6 +191,7 @@ func TestInstallScriptUninstallRemovesInstalledFilesButKeepsState(t *testing.T) 
 	}
 	assertFileMissing(t, filepath.Join(binDir, "phosphor"))
 	assertFileMissing(t, filepath.Join(binDir, "phosphord"))
+	assertFileMissing(t, filepath.Join(binDir, "phosphor-actiond"))
 	assertFileMissing(t, filepath.Join(binDir, "switchboard"))
 	assertFileMissing(t, filepath.Join(shareDir, "doors"))
 	assertFileExists(t, filepath.Join(configDir, "node.toml"))
@@ -212,6 +215,7 @@ func TestInstallScriptUninstallPurgeRemovesConfigAndState(t *testing.T) {
 
 	runInstallScript(t, root, artifactDir, binDir, shareDir, configDir, stateDir, "--uninstall", "--purge", "--node")
 	assertFileMissing(t, filepath.Join(binDir, "phosphord"))
+	assertFileMissing(t, filepath.Join(binDir, "phosphor-actiond"))
 	assertFileMissing(t, filepath.Join(shareDir, "doors"))
 	assertFileMissing(t, filepath.Join(configDir, "node.toml"))
 	assertFileMissing(t, dbPath)
@@ -231,6 +235,7 @@ func fakeArtifactDir(t *testing.T) string {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "phosphor"), "#!/bin/sh\necho phosphor \"$@\"\n")
 	writeExecutable(t, filepath.Join(dir, "switchboard"), "#!/bin/sh\necho switchboard \"$@\"\n")
+	writeExecutable(t, filepath.Join(dir, "phosphor-actiond"), "#!/bin/sh\necho phosphor-actiond \"$@\"\n")
 	writeExecutable(t, filepath.Join(dir, "phosphord"), `#!/bin/sh
 if [ "$1" = "init" ]; then
 	out=""
@@ -291,6 +296,7 @@ func fakeReleaseArchive(t *testing.T) string {
 
 	packageRoot := "phosphornet_linux_amd64"
 	addTarFile(t, tw, artifactDir, "phosphord", packageRoot+"/phosphord", 0o755)
+	addTarFile(t, tw, artifactDir, "phosphor-actiond", packageRoot+"/phosphor-actiond", 0o755)
 	addTarFile(t, tw, artifactDir, filepath.Join("doors", "lobby", "manifest.toml"), packageRoot+"/doors/lobby/manifest.toml", 0o644)
 	return archivePath
 }

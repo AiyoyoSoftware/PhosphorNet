@@ -24,6 +24,7 @@ switchboard helps nodes connect.
 Ed25519 identifies.
 WebSocket carries the session.
 SQLite remembers.
+phosphor-actiond executes only explicit rules.
 ```
 
 Core principle:
@@ -82,6 +83,9 @@ Use this map before opening more files:
 - Node auth, sessions, message routing, door dispatch:
   `cmd/phosphord/`
   `internal/node/`
+- Allowlisted host actions, action rules, and Unix-socket JSON delegation:
+  `cmd/phosphor-actiond/`
+  `internal/action/`
 - Shared protocol and wire/runtime message types:
   `internal/protocol/`
 - Persistence and scoped state:
@@ -114,6 +118,7 @@ Executable names:
 - `phosphor`: main CLI and trusted TUI client
 - `phosphord`: node daemon
 - `switchboard`: relay/rendezvous service
+- `phosphor-actiond`: optional allowlisted host-action daemon
 
 User-facing copy should prefer **door** over **app** when possible.
 
@@ -128,6 +133,7 @@ When implementing or reviewing changes, preserve these rules:
 - Doors run server-side under `phosphord`.
 - Doors own behavior, not transport, trust, identity, or direct client rendering.
 - Door state should flow through the SDK and typed effects, not arbitrary filesystem access.
+- Host commands must flow through typed action effects and `phosphor-actiond`; require both `action:<rule-id>` in the door manifest and an explicit door ID in the action rule.
 - Keep the protocol small, typed, and strict. Do not turn it into a mini browser or generic DOM.
 
 ## Current MVP Reality Checks

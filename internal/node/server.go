@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"phosphornet/internal/action"
 	"phosphornet/internal/config"
 	"phosphornet/internal/identity"
 	"phosphornet/internal/protocol"
@@ -31,6 +32,7 @@ type Server struct {
 	auditMaxBytes   int64
 	rateLimits      *userRateTracker
 	disconnectGrace time.Duration
+	actionExecutor  action.Executor
 }
 
 func newServer(cfg config.NodeConfig, doors []runtime.DoorManifest, store *storage.Store) *Server {
@@ -42,6 +44,10 @@ func newServerWithOptions(cfg config.NodeConfig, doors []runtime.DoorManifest, s
 	if disconnectGrace == 0 {
 		disconnectGrace = defaultSessionDisconnectGrace
 	}
+	executor := options.ActionExecutor
+	if executor == nil && cfg.Actiond.Enabled && cfg.Actiond.Socket != "" {
+		executor = action.Client{Socket: cfg.Actiond.Socket}
+	}
 	return &Server{
 		cfg:             cfg,
 		doors:           doors,
@@ -52,6 +58,7 @@ func newServerWithOptions(cfg config.NodeConfig, doors []runtime.DoorManifest, s
 		auditMaxBytes:   options.AuditLogMaxBytes,
 		rateLimits:      newUserRateTracker(),
 		disconnectGrace: disconnectGrace,
+		actionExecutor:  executor,
 	}
 }
 

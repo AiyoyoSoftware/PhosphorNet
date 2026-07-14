@@ -23,6 +23,7 @@ type luaEffects struct {
 	transitions    []protocol.TransitionEffect
 	profileUpdates []protocol.ProfileUpdateEffect
 	adminOps       []protocol.AdminOp
+	actions        []protocol.ActionEffect
 }
 
 func (LuaInvoker) Invoke(ctx context.Context, doorsRoot string, manifest DoorManifest, options RuntimeOptions, request protocol.RuntimeRequest) (protocol.RuntimeResponse, error) {
@@ -85,6 +86,7 @@ func (LuaInvoker) Invoke(ctx context.Context, doorsRoot string, manifest DoorMan
 		Transitions:     effects.transitions,
 		ProfileUpdates:  effects.profileUpdates,
 		AdminOps:        effects.adminOps,
+		Actions:         effects.actions,
 	}
 	return response, nil
 }
@@ -297,6 +299,18 @@ func effectsTable(L *lua.LState, ctxTable *lua.LTable, states *lua.LTable, effec
 				return 0
 			}
 			effects.adminOps = append(effects.adminOps, op)
+			return 0
+		},
+		"action": func(L *lua.LState) int {
+			offset := methodOffset(L, table)
+			effect := protocol.ActionEffect{
+				RuleID:    L.CheckString(offset),
+				RequestID: L.CheckString(offset + 1),
+			}
+			if L.GetTop() >= offset+2 && L.Get(offset+2) != lua.LNil {
+				effect.Input = luaValueToAny(L.Get(offset + 2))
+			}
+			effects.actions = append(effects.actions, effect)
 			return 0
 		},
 	})

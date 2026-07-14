@@ -59,6 +59,8 @@ The currently shipped doors include:
 - `chat`: a shared room chat
 - `forum`: board-style threads and replies
 - `admin`: station settings, door controls, user moderation, logs, and maintenance tools
+- `strategy_demo`: a shared room-state strategy proof, disabled by default
+- `action_demo`: Action Workshop, a fixed-choice host-action example with a bundled `actiond.example.toml`, disabled until those rules are configured
 
 The station runs the doors. The local terminal client draws the screen. Doors return structured UI instead of raw terminal commands, so they can offer buttons, forms, lists, and text while the client keeps control of the terminal.
 
@@ -89,6 +91,7 @@ The default installed layout:
 ```text
 /usr/local/bin/phosphor
 /usr/local/bin/phosphord
+/usr/local/bin/phosphor-actiond
 /usr/local/bin/switchboard
 /usr/local/share/phosphornet/doors
 /etc/phosphornet/node.toml
@@ -197,6 +200,16 @@ Start the daemon:
 go run ./cmd/phosphord serve --config node.toml
 ```
 
+Doors that use operator-defined host actions also need the separate action daemon. Local node configs automatically use `~/.local/share/phosphornet/actiond.sock`; system node configs use `/run/phosphornet/actiond.sock`. Create `actiond.toml` with explicit rules and run:
+
+```bash
+go run ./cmd/phosphor-actiond serve --config actiond.toml
+```
+
+Set `[actiond].socket` only when using a different socket, or set `actiond.enabled = false` to disable delegation explicitly. The bundled `doors/action_demo/actiond.example.toml` already uses the local default.
+
+See `docs/PhosphorNet_configuration.md` for the rule format and authorization model.
+
 By default, the station listens on:
 
 ```text
@@ -220,8 +233,9 @@ PhosphorNet is in MVP / public-alpha preparation. The core loop works today:
 - trusted-client rendering of declarative JSON UI
 - Lua doors as the default embedded runtime
 - stdio command doors for Python or other languages, with optional Podman isolation
+- optional `phosphor-actiond` delegation for fixed, per-door-allowlisted host commands
 - SQLite-backed scoped state
-- bundled lobby, profile, chat, forum, and admin doors
+- bundled lobby, profile, chat, forum, admin, strategy demo, and action demo doors
 - station and door access controls, including admin-only and invite-only modes
 
 Current limitations:
@@ -235,12 +249,13 @@ Current limitations:
 
 ## Architecture
 
-PhosphorNet currently has three command-line programs:
+PhosphorNet currently has four command-line programs:
 
 | Program | Purpose |
 |---|---|
 | `phosphor` | Trusted terminal client. Renders station chrome and remote door UI locally. |
 | `phosphord` | Station daemon. Hosts doors, authenticates passports, stores state, and serves WebSocket sessions. |
+| `phosphor-actiond` | Optional Unix-host daemon for fixed, per-door-allowlisted commands requested through typed effects. |
 | `switchboard` | Early relay/rendezvous scaffold. Currently health-checkable, not full federation. |
 
 High-level flow:
@@ -253,6 +268,7 @@ phosphor client
               ├── verifies station access policy
               ├── loads door manifests
               ├── invokes Lua or stdio door runtimes
+              ├── delegates allowed host actions to phosphor-actiond over local JSON
               ├── stores scoped state in SQLite
               └── returns declarative UI trees
 ```
@@ -523,6 +539,7 @@ Build the executables:
 ```bash
 go build ./cmd/phosphor
 go build ./cmd/phosphord
+go build ./cmd/phosphor-actiond
 go build ./cmd/switchboard
 ```
 
@@ -553,6 +570,7 @@ python3 -m py_compile \
 cmd/
   phosphor/       terminal client
   phosphord/      station daemon
+  phosphor-actiond/ allowlisted host-action daemon
   switchboard/    relay/rendezvous scaffold
 internal/
   client/         Bubble Tea client and local renderer
@@ -560,12 +578,14 @@ internal/
   identity/       Ed25519 passports and station identity
   knownnodes/     known-node pinning
   node/           station session and door orchestration
+  action/         action rules, bounded command runner, and Unix-socket JSON transport
   protocol/       shared protocol structures
   runtime/        Lua and stdio runtime invocation
   storage/        SQLite persistence
 sdk/
   python/         Python door SDK/runtime shim
 doors/
+  action_demo/
   lobby/
   profile/
   chat/

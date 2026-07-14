@@ -78,6 +78,9 @@ func TestInitCommandSeedsAdminAccessFromPassport(t *testing.T) {
 	if !disabled["strategy_demo"] {
 		t.Fatalf("disabled_doors = %#v, want strategy_demo disabled by default", disabled)
 	}
+	if !disabled["action_demo"] {
+		t.Fatalf("disabled_doors = %#v, want action_demo disabled by default", disabled)
+	}
 }
 
 func TestDefaultInitNodeConfigUsesSystemPathsForInstalledDefault(t *testing.T) {
@@ -89,6 +92,9 @@ func TestDefaultInitNodeConfigUsesSystemPathsForInstalledDefault(t *testing.T) {
 	}
 	if cfg.Database != app.SystemDatabasePath {
 		t.Fatalf("Database = %q, want %q", cfg.Database, app.SystemDatabasePath)
+	}
+	if cfg.Actiond.Socket != app.SystemActiondSocketPath {
+		t.Fatalf("Actiond.Socket = %q, want %q", cfg.Actiond.Socket, app.SystemActiondSocketPath)
 	}
 }
 
@@ -102,6 +108,9 @@ func TestDefaultInitNodeConfigUsesLocalDatabaseForExplicitOut(t *testing.T) {
 	}
 	if want := filepath.Join(dir, "phosphornet.db"); cfg.Database != want {
 		t.Fatalf("Database = %q, want %q", cfg.Database, want)
+	}
+	if want := app.HomeActiondSocketPath(); cfg.Actiond.Socket != want {
+		t.Fatalf("Actiond.Socket = %q, want %q", cfg.Actiond.Socket, want)
 	}
 }
 

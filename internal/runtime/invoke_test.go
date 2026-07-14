@@ -107,6 +107,97 @@ func TestInvokeDoorUpdateReturnsStateOps(t *testing.T) {
 	}
 }
 
+func TestInvokeLuaDoorRequestsActionAndReceivesResultEvent(t *testing.T) {
+	root := t.TempDir()
+	doorDir := filepath.Join(root, "tools")
+	if err := os.MkdirAll(doorDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	app := `
+local ui = phosphornet.ui
+function update(ctx, event)
+  if event.kind == "action_result" then
+    ctx.store:set("user", "output", event.action_result.stdout)
+  else
+    ctx.effects.action("status", "request-1", { source = "door" })
+  end
+  return ui.screen({ui.text("tools")})
+end
+`
+	if err := os.WriteFile(filepath.Join(doorDir, "app.lua"), []byte(app), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	manifest := DoorManifest{ID: "tools", Name: "Tools", Entry: "app.lua"}
+	runtimeCtx := testRuntimeContext("tools")
+	response, err := InvokeDoorUpdate(context.Background(), root, manifest, runtimeCtx, protocol.UIEvent{Kind: protocol.EventKindAction})
+	if err != nil {
+		t.Fatalf("InvokeDoorUpdate(request) error = %v", err)
+	}
+	if len(response.Actions) != 1 || response.Actions[0].RuleID != "status" || response.Actions[0].RequestID != "request-1" {
+		t.Fatalf("response.Actions = %#v, want status request", response.Actions)
+	}
+	resultResponse, err := InvokeDoorUpdate(context.Background(), root, manifest, runtimeCtx, protocol.UIEvent{
+		Kind: protocol.EventKindActionResult,
+		ActionResult: &protocol.ActionResult{
+			RequestID: "request-1",
+			RuleID:    "status",
+			OK:        true,
+			ExitCode:  0,
+			Stdout:    "ready\n",
+		},
+	})
+	if err != nil {
+		t.Fatalf("InvokeDoorUpdate(result) error = %v", err)
+	}
+	if op, ok := stateOpForKey(resultResponse.StateOps, "output"); !ok || op.Value != "ready\n" {
+		t.Fatalf("result response state ops = %#v, want action stdout", resultResponse.StateOps)
+	}
+}
+
+func TestBundledActionDemoUsesFixedRuleAndHandlesResult(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "doors"))
+	if err != nil {
+		t.Fatalf("Abs() error = %v", err)
+	}
+	manifest, err := LoadDoorManifest(filepath.Join(root, "action_demo", "manifest.toml"))
+	if err != nil {
+		t.Fatalf("LoadDoorManifest() error = %v", err)
+	}
+	runtimeCtx := testRuntimeContext("action_demo")
+	response, err := InvokeDoorUpdate(context.Background(), root, manifest, runtimeCtx, protocol.UIEvent{
+		Kind:   protocol.EventKindAction,
+		Target: "run-uptime",
+		Action: "run_uptime",
+	})
+	if err != nil {
+		t.Fatalf("InvokeDoorUpdate(request) error = %v", err)
+	}
+	if len(response.Actions) != 1 || response.Actions[0].RuleID != "demo-uptime" {
+		t.Fatalf("response.Actions = %#v, want only fixed demo-uptime rule", response.Actions)
+	}
+	input, ok := response.Actions[0].Input.(map[string]any)
+	if !ok || input["selection"] != "uptime" || input["source"] != "action_demo" {
+		t.Fatalf("response.Actions[0].Input = %#v, want typed demo input", response.Actions[0].Input)
+	}
+
+	resultResponse, err := InvokeDoorUpdate(context.Background(), root, manifest, runtimeCtx, protocol.UIEvent{
+		Kind: protocol.EventKindActionResult,
+		ActionResult: &protocol.ActionResult{
+			RequestID: "action-demo:demo-uptime:test-session",
+			RuleID:    "demo-uptime",
+			OK:        true,
+			ExitCode:  0,
+			Stdout:    "up 3 days\n",
+		},
+	})
+	if err != nil {
+		t.Fatalf("InvokeDoorUpdate(result) error = %v", err)
+	}
+	if op, ok := stateOpForKey(resultResponse.StateOps, "last_stdout"); !ok || op.Value != "up 3 days\n" {
+		t.Fatalf("result state ops = %#v, want persisted stdout", resultResponse.StateOps)
+	}
+}
+
 func TestInvokeChatDoorView(t *testing.T) {
 	doorsRoot, err := filepath.Abs(filepath.Join("..", "..", "doors"))
 	if err != nil {

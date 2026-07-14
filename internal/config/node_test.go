@@ -20,6 +20,9 @@ func TestDefaultNodeConfigUsesInstalledPathsWithoutHomeOverrides(t *testing.T) {
 	if cfg.Database != app.SystemDatabasePath {
 		t.Fatalf("Database = %q, want %q", cfg.Database, app.SystemDatabasePath)
 	}
+	if !cfg.Actiond.Enabled || cfg.Actiond.Socket != app.SystemActiondSocketPath {
+		t.Fatalf("Actiond = %#v, want enabled system socket", cfg.Actiond)
+	}
 }
 
 func TestApplyHomeOverridesUsesHomeDataWhenPresent(t *testing.T) {
@@ -75,5 +78,60 @@ func TestLoadNodeConfigRejectsInvalidAccessMode(t *testing.T) {
 
 	if _, err := LoadNodeConfig(path); err == nil {
 		t.Fatal("LoadNodeConfig() error = nil, want invalid access.mode rejection")
+	}
+}
+
+func TestLoadNodeConfigRejectsRelativeActiondSocket(t *testing.T) {
+	passport, err := identity.Generate("node")
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "node.toml")
+	content := fmt.Sprintf("name = \"localbox\"\nlisten_addr = \":7707\"\nnode_id = %q\nprivate_key = %q\ndoors_dir = \"./doors\"\ndatabase = \"./phosphornet.db\"\n[actiond]\nsocket = \"./actiond.sock\"\n", passport.PublicKey, passport.PrivateKey)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := LoadNodeConfig(path); err == nil {
+		t.Fatal("LoadNodeConfig() error = nil, want relative actiond socket rejection")
+	}
+}
+
+func TestLoadLocalNodeConfigDefaultsEmptyActiondSocketToUserData(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	passport, err := identity.Generate("node")
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "node.toml")
+	content := fmt.Sprintf("name = \"localbox\"\nlisten_addr = \":7707\"\nnode_id = %q\nprivate_key = %q\ndoors_dir = \"./doors\"\ndatabase = \"./phosphornet.db\"\n[actiond]\nsocket = \"\"\n", passport.PublicKey, passport.PrivateKey)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	cfg, err := LoadNodeConfig(path)
+	if err != nil {
+		t.Fatalf("LoadNodeConfig() error = %v", err)
+	}
+	if !cfg.Actiond.Enabled || cfg.Actiond.Socket != app.HomeActiondSocketPath() {
+		t.Fatalf("Actiond = %#v, want enabled user socket", cfg.Actiond)
+	}
+}
+
+func TestLoadNodeConfigCanDisableActiond(t *testing.T) {
+	passport, err := identity.Generate("node")
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "node.toml")
+	content := fmt.Sprintf("name = \"localbox\"\nlisten_addr = \":7707\"\nnode_id = %q\nprivate_key = %q\ndoors_dir = \"./doors\"\ndatabase = \"./phosphornet.db\"\n[actiond]\nenabled = false\nsocket = \"\"\n", passport.PublicKey, passport.PrivateKey)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	cfg, err := LoadNodeConfig(path)
+	if err != nil {
+		t.Fatalf("LoadNodeConfig() error = %v", err)
+	}
+	if cfg.Actiond.Enabled || cfg.Actiond.Socket != "" {
+		t.Fatalf("Actiond = %#v, want explicitly disabled", cfg.Actiond)
 	}
 }

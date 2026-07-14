@@ -70,7 +70,7 @@ func newInitCommand() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "wrote node config to %s\n", out)
-			fmt.Fprintf(cmd.OutOrStdout(), "default station policy disables strategy_demo until an admin enables it\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "default station policy disables strategy_demo and action_demo until an admin enables them\n")
 			if created {
 				fmt.Fprintf(cmd.OutOrStdout(), "created admin passport at %s\n", adminPassport)
 			} else {
@@ -143,13 +143,17 @@ func seedDefaultStationPolicyStore(ctx context.Context, store *storage.Store) er
 	}
 
 	disabled := boolMapFromAnyMap(state.Global["disabled_doors"])
-	if disabled["strategy_demo"] {
+	changed := false
+	for _, doorID := range []string{"strategy_demo", "action_demo"} {
+		if _, exists := disabled[doorID]; exists {
+			continue
+		}
+		disabled[doorID] = true
+		changed = true
+	}
+	if !changed {
 		return nil
 	}
-	if _, exists := disabled["strategy_demo"]; exists {
-		return nil
-	}
-	disabled["strategy_demo"] = true
 
 	return store.ApplyStateOps(ctx, adminDoorID, storage.StateScopeIDs{Global: "global"}, "admin", []protocol.StateOp{
 		{
@@ -201,6 +205,11 @@ func newServeCommand() *cobra.Command {
 				return err
 			}
 			log.Printf("phosphord database path=%s schema_version=%d", store.Path(), schemaVersion)
+			if cfg.Actiond.Enabled {
+				log.Printf("phosphord action delegation enabled at unix://%s", cfg.Actiond.Socket)
+			} else {
+				log.Printf("phosphord action delegation disabled")
+			}
 
 			var auditFile *rotatingAuditFile
 			if auditLogFile != "" {

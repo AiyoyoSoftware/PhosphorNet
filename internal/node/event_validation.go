@@ -64,6 +64,9 @@ func addComponentPolicy(policy *renderEventPolicy, id, component string, actions
 }
 
 func validateEventAgainstPolicy(event protocol.UIEvent, policy renderEventPolicy) error {
+	if event.ActionResult != nil {
+		return fmt.Errorf("action_result is node-generated and cannot be sent by a client")
+	}
 	switch event.Kind {
 	case protocol.EventKindAction:
 		component, err := policy.component(event.Target)

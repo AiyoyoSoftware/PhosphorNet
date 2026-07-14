@@ -8,9 +8,12 @@ PhosphorNet currently runs as three command-line programs:
 
 - `phosphor`: trusted terminal client.
 - `phosphord`: node daemon that hosts doors.
+- `phosphor-actiond`: optional allowlisted host-action daemon for doors.
 - `switchboard`: relay/rendezvous scaffold.
 
 For local development, you usually run `phosphord` in one terminal and `phosphor` in another.
+
+The bundled Action Workshop rules use a user-writable socket at `~/.local/share/phosphornet/actiond.sock`; `/run/phosphornet/actiond.sock` is reserved for root-managed service setups.
 
 ## Requirements
 
@@ -64,6 +67,7 @@ The installer uses these default locations:
 ```text
 /usr/local/bin/phosphor
 /usr/local/bin/phosphord
+/usr/local/bin/phosphor-actiond
 /usr/local/bin/switchboard
 /usr/local/share/phosphornet/doors
 /etc/phosphornet/node.toml
@@ -108,9 +112,10 @@ This writes a `node.toml` file containing:
 - doors directory
 - SQLite database path
 - runtime defaults
+- the per-user actiond socket default
 - admin access seeded from a local passport
 
-It also seeds the default station policy in the SQLite database so `strategy_demo` starts disabled on fresh stations until an admin enables it.
+It also seeds the default station policy in the SQLite database so `strategy_demo` and the operator-configured `action_demo` start disabled on fresh stations until an admin enables them.
 
 If the default local passport does not exist, `phosphord init` creates it at:
 
@@ -230,11 +235,12 @@ curl http://127.0.0.1:7710/healthz
 
 ## Build Binaries
 
-Build the three executables:
+Build the four executables:
 
 ```bash
 go build ./cmd/phosphor
 go build ./cmd/phosphord
+go build ./cmd/phosphor-actiond
 go build ./cmd/switchboard
 ```
 

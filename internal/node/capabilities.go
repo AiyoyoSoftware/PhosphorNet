@@ -114,6 +114,11 @@ func validateResponseCapabilities(session *sessionState, door runtime.DoorManife
 			return err
 		}
 	}
+	for _, action := range response.Actions {
+		if err := requireDoorCapability(door, runtime.ActionCapability(action.RuleID)); err != nil {
+			return err
+		}
+	}
 	if response.View.CaptureKeys {
 		if err := requireDoorCapability(door, runtime.CapabilityCaptureKeys); err != nil {
 			return err

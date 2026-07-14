@@ -41,6 +41,22 @@ func TestLoadDoorManifest(t *testing.T) {
 	}
 }
 
+func TestLoadDoorManifestAllowsRuleSpecificActionCapability(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.toml")
+	content := []byte("id = \"tools\"\nname = \"Tools\"\nentry = \"app.lua\"\ncapabilities = [\"action:host-status\"]\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	manifest, err := LoadDoorManifest(path)
+	if err != nil {
+		t.Fatalf("LoadDoorManifest() error = %v", err)
+	}
+	if !HasCapability(manifest.Capabilities, ActionCapability("host-status")) {
+		t.Fatalf("manifest.Capabilities = %#v, want action capability", manifest.Capabilities)
+	}
+}
+
 func TestLoadDoorManifestRejectsInvalidSettingDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.toml")

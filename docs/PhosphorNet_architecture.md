@@ -127,17 +127,18 @@ Basic public-station survival primitives are not the same as advanced moderation
 │  stdio door runtime         │
 │  SQLite state               │
 │  render/event protocol      │
-└──────────────┬─────────────┘
-               │
-               │ optional later
-               ▼
-┌────────────────────────────┐
-│        switchboard          │
-│  relay / rendezvous         │
-│  node registration          │
-│  frame forwarding           │
-│  optional directory later   │
-└────────────────────────────┘
+└───────┬────────────────┬───┘
+        │                │
+        │ Unix socket    │ optional later
+        │ + JSON         │
+        ▼                ▼
+┌────────────────────┐  ┌────────────────────────────┐
+│ phosphor-actiond   │  │        switchboard         │
+│ fixed argv rules   │  │  relay / rendezvous        │
+│ door allowlists    │  │  node registration         │
+│ bounded execution │  │  frame forwarding          │
+└────────────────────┘  │  optional directory later  │
+                        └────────────────────────────┘
 ```
 
 ## 6. Core Components
@@ -192,7 +193,24 @@ A node can be:
 - Community node: always-on public place.
 - Personal node: a user's own station.
 
-## 6.3 switchboard
+## 6.3 phosphor-actiond
+
+`phosphor-actiond` is an optional, separate host-action process. It is the only component in the normal door flow that launches operator-configured host commands.
+
+Responsibilities:
+
+- Listen on a local Unix socket using the typed `phosphornet.action.v1` JSON protocol.
+- Load fixed command argv arrays from its own TOML file.
+- Require each rule to name the exact doors allowed to invoke it.
+- Pass door-supplied JSON only on command stdin; never splice it into argv or shell text.
+- Enforce per-rule timeouts and bounded stdout/stderr capture.
+- Return exit status, stdout, stderr, timeout, and truncation metadata to `phosphord`.
+
+Authorization is intentionally two-layered. `phosphord` requires the door manifest capability `action:<rule-id>`, while `phosphor-actiond` independently requires that door ID in the rule's `allowed_doors`. The Unix socket ownership and mode are the local caller-authentication boundary.
+
+`phosphord` must not execute an action rule itself or accept arbitrary command/argument text from a door.
+
+## 6.4 switchboard
 
 `switchboard` is an optional relay/rendezvous service. It exists to make private or NATed nodes reachable without requiring everyone to expose inbound ports.
 

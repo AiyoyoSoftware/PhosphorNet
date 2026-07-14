@@ -178,6 +178,13 @@ Reconnects:
 - player list and turn state
 - room broadcasts after changes
 
+`action_demo` / Action Workshop:
+
+- demonstrates fixed semantic choices delegated to the optional `phosphor-actiond` host-action process
+- shows structured success, failure, exit code, stdout, and stderr results without accepting command or argv text from users
+- ships with its matching operator rules in `doors/action_demo/actiond.example.toml`
+- starts disabled until the station operator configures the matching `demo-*` TOML rules and enables the door
+
 `admin` / Station Admin:
 
 - visible only to admin passports

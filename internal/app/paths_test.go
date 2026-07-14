@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func TestExpandUserPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	got, err := ExpandUserPath("~/.local/share/phosphornet/actiond.sock")
+	if err != nil {
+		t.Fatalf("ExpandUserPath() error = %v", err)
+	}
+	want := filepath.Join(home, ".local", "share", "phosphornet", "actiond.sock")
+	if got != want {
+		t.Fatalf("ExpandUserPath() = %q, want %q", got, want)
+	}
+}
+
+func TestHomeActiondSocketPathUsesUserDataDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	want := filepath.Join(home, ".local", "share", "phosphornet", "actiond.sock")
+	if got := HomeActiondSocketPath(); got != want {
+		t.Fatalf("HomeActiondSocketPath() = %q, want %q", got, want)
+	}
+}
+
 func TestInstalledDefaultsUseBoringSystemLocations(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

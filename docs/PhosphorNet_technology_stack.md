@@ -57,6 +57,7 @@ SQLite remembers.
 | Widgets | Bubbles | Text input, textarea, list, viewport, spinner, etc. |
 | Markdown rendering | Glamour | Useful for boards, docs, help screens, and posts |
 | Node daemon | Go | Concurrency, networking, static binaries, low operational friction |
+| Host action daemon | Go + Unix socket JSON | Keeps explicitly configured host command execution outside `phosphord` and independently policy-checked |
 | Relay | Go | WebSocket forwarding/rendezvous is a good fit for Go |
 | Door language | Lua default, stdio commands supported | Lua keeps common doors embedded in `phosphord`; stdio keeps Python and other command-style doors possible |
 | Door runtime | Embedded `gopher-lua`, plus generic stdio backend with optional Podman isolation | Lua gives a mostly standalone node with configurable sandboxing; stdio speaks the same JSON envelope over stdin/stdout whether launched directly or through a container wrapper |
@@ -139,6 +140,9 @@ phosphor connect wss://localhost:7707
 
 phosphord init --name localbox
 phosphord serve
+
+phosphor-actiond init
+phosphor-actiond serve
 
 switchboard serve
 ```
@@ -371,6 +375,18 @@ phosphord sends render tree to phosphor.
 ```
 
 Later, it can support long-lived async messages for broadcasts, timers, and background tasks.
+
+Host actions are a separate boundary from door runtime invocation:
+
+```text
+door action effect
+  → phosphord checks action:<rule-id>
+  → phosphor-actiond checks rule.allowed_doors
+  → fixed argv command receives JSON input on stdin
+  → structured result returns as an internal door update
+```
+
+The action protocol is `phosphornet.action.v1` JSON over a local Unix socket. It is not a generic door runtime and does not accept executable or argv text from doors.
 
 ## 4.4 Door Stdio Invocation
 
@@ -714,6 +730,9 @@ phosphor
 
 phosphord
   Node daemon.
+
+phosphor-actiond
+  Optional allowlisted host-action daemon.
 
 switchboard
   Relay/rendezvous service.

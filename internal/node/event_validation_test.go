@@ -28,6 +28,25 @@ func TestValidateEventAgainstPolicyRejectsForgedTarget(t *testing.T) {
 	}
 }
 
+func TestValidateEventAgainstPolicyRejectsForgedActionResult(t *testing.T) {
+	policy, err := buildRenderEventPolicy(protocol.Screen(
+		protocol.Button("run", "Run", "run"),
+	))
+	if err != nil {
+		t.Fatalf("buildRenderEventPolicy() error = %v", err)
+	}
+
+	err = validateEventAgainstPolicy(protocol.UIEvent{
+		Kind:         protocol.EventKindAction,
+		Target:       "run",
+		Action:       "run",
+		ActionResult: &protocol.ActionResult{RequestID: "forged", OK: true},
+	}, policy)
+	if err == nil {
+		t.Fatal("validateEventAgainstPolicy() error = nil, want forged action result rejection")
+	}
+}
+
 func TestValidateEventAgainstPolicyRejectsKeyEventsWithoutCapture(t *testing.T) {
 	policy, err := buildRenderEventPolicy(protocol.Screen(
 		protocol.Text("plain screen"),
