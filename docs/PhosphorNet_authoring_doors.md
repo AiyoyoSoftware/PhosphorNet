@@ -4,6 +4,9 @@
 
 This guide explains how to author PhosphorNet content as doors.
 
+For exact Lua function signatures and fields, see
+`docs/PhosphorNet_lua_api.md`.
+
 A door is a server-side program hosted by `phosphord`. It receives a typed context, returns a declarative UI tree, and requests side effects through structured effects. The client renders the UI locally and sends semantic events back.
 
 The boundary is the product:

@@ -1,5 +1,15 @@
 # changelog.md
 
+## 2026-07-14 - Lua Door API Reference
+
+- Added a dedicated Lua door API reference covering lifecycle hooks, context
+  fields, events, every embedded UI constructor, scoped state, navigation,
+  effects, sandbox limits, capabilities, and a complete example.
+- Audited the reference against node scheduling, render/event validation,
+  capability enforcement, context population, broadcast fanout, and profile
+  persistence, correcting reserved lifecycle and effect details.
+- Linked the door authoring guide to the callable Lua reference.
+
 ## 2026-06-16 - README Tone Cleanup
 
 - Revised the README overview and use-case sections to use more direct, product-documentation style language.
