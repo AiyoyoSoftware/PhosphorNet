@@ -37,15 +37,6 @@ There is currently no top-level `tests/` directory. The broad integration suite 
 | Moderation policy | `internal/node/access_test.go`; `internal/node/integration_test.go`: ban disconnect and reconnect denial, mute enforcement with navigation carve-out, per-user event/open-door rate limits | Covered |
 | Reconnect/session recovery | `internal/node/integration_test.go`: `TestIntegrationReconnectWithinGraceReopensLastDoorWithoutJoinLeave`, `TestIntegrationDisconnectGraceFiresLeaveAfterTimeout`; `internal/node/session_test.go`: live registry targeting and presence behavior | Covered |
 
-## Useful Next Gaps
-
-These are the highest-signal additions if the project needs more release confidence.
-
-- Add a websocket negative test for an admin door that has `access = "admin"` but lacks the specific `admin:*` capability, proving privileged admin effects are denied end to end.
-- Add a websocket or command-level test for manifest reload rejection when a newly added manifest is invalid, proving live nodes do not partially accept bad door inventory.
-- Add an end-to-end client connect test around first-connect known-node pinning if the client connection code becomes easier to drive without a full terminal UI.
-- Add a websocket scoped-state atomicity test only if node-level lifecycle scheduling semantics become part of the compatibility promise. The storage transaction invariant is already covered.
-
 ## Test Commands
 
 For the current workspace, use the sandbox-friendly Go cache path:

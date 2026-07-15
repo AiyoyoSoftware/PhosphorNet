@@ -4,7 +4,7 @@
 
 This is the boring operator document for station memory.
 
-For the current MVP, SQLite is the station's durable memory. Losing the database means losing known users, user profiles, roles, door state, station settings, moderation state, station policy, durable audit events, and admin-door configuration.
+SQLite is the station's durable memory. Losing the database means losing known users, user profiles, roles, door state, station settings, moderation state, station policy, durable audit events, and admin-door configuration.
 
 Backups should treat these files as one station bundle:
 
@@ -97,7 +97,7 @@ Migration expectations:
 - Schema changes must be backward-readable only when the code explicitly keeps that compatibility.
 - Back up before starting a newer binary against an important station database.
 - Do not downgrade a station database unless the release notes explicitly say it is supported.
-- The `migrations/` directory documents the intended schema history; runtime bootstrap is still the enforcement path in the current MVP.
+- The `migrations/` directory documents the intended schema history; runtime bootstrap is the current enforcement path.
 
 ## If The Database Is Deleted
 
@@ -140,8 +140,8 @@ Not safe to delete on a real station without a backup:
 
 ## Repair And Export
 
-The current MVP does not ship a dedicated repair or export command.
+Database repair and export use standard SQLite tools; PhosphorNet does not wrap them in a dedicated command.
 
 For serious SQLite recovery, stop `phosphord` and use standard SQLite tooling on a copy of the database. Keep the original untouched until the recovered copy has been verified.
 
-For compaction, run SQLite `VACUUM` only while `phosphord` is stopped or through a future node-owned maintenance operation. Do not mutate the live database behind a running node.
+For compaction, run SQLite `VACUUM` only while `phosphord` is stopped. Do not mutate the live database behind a running node.

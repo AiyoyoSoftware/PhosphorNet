@@ -234,7 +234,7 @@ Remote nodes and doors must not:
 - read the clipboard
 - receive passport private keys
 
-If a future feature asks for local authority, it should appear as trusted client UI and require an explicit local decision.
+Any request for local authority must appear as trusted client UI and require an explicit local decision.
 
 ## Troubleshooting
 

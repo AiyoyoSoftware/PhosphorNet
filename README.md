@@ -1,12 +1,12 @@
 # PhosphorNet
 
-**PhosphorNet is a self-hostable platform for interactive terminal apps.**
+**PhosphorNet is a self-hosted, terminal-native platform for safe homelab control surfaces.**
 
-Use it to host terminal-native chat, forums, dashboards, admin panels, games, maintenance tools, and experiments without issuing shell accounts or building a browser app.
+Use it to build status pages, dashboards, bounded log viewers, maintenance tools, and other remote interfaces without issuing shell accounts or creating a browser application for every task.
 
 Users connect to a PhosphorNet station with the `phosphor` terminal client and a portable Ed25519 passport identity. Door code runs on the station. The station sends declarative JSON UI trees over WebSockets. The trusted client renders that UI locally and sends back structured events such as button presses, menu choices, form submissions, and approved key input.
 
-PhosphorNet provides structured remote interfaces rather than shell sessions or raw terminal output. Its model is close to BBS-style hosted spaces, with modern identity, station-local policy, and SQLite-backed state.
+PhosphorNet provides structured remote interfaces rather than shell sessions or raw terminal output. Host actions are fixed by the station operator, authorized twice, and audited. The same station and door model can also host community spaces, games, and collaborative tools.
 
 <table>
   <tr>
@@ -38,13 +38,14 @@ PhosphorNet provides structured remote interfaces rather than shell sessions or 
 
 ## Use Cases
 
-PhosphorNet is useful when people need to connect to a shared place from their terminal, while the station operator keeps identity, access policy, and data local.
+PhosphorNet is useful when a homelab operator wants a focused remote interface without handing users a shell or maintaining a separate web dashboard for every tool. Identity, access policy, host-action rules, and data remain under the station operator's control.
 
 Common use cases:
 
-- a terminal-based social space for computer clubs, hackerspaces, retrocomputing groups, or technical communities
 - a homelab control panel with status pages, logs, notes, and maintenance actions
 - internal tools for a small server, workshop, studio, or project space
+- safer operator interfaces for explicitly allowlisted service and container actions
+- a terminal-based social space for computer clubs, hackerspaces, retrocomputing groups, or technical communities
 - chat and forum spaces for people who already like terminal software
 - small multiplayer games, shared experiments, bots, and collaborative toys
 - admin panels for services that should not have a public browser UI
@@ -222,9 +223,9 @@ In another terminal, connect with a disposable local development identity:
 go run ./cmd/phosphor connect wss://127.0.0.1:7707/ws --quick
 ```
 
-## What Works Today
+## Platform Capabilities
 
-PhosphorNet is in MVP / public-alpha preparation. The core loop works today:
+The current release provides:
 
 - `phosphor` terminal client
 - `phosphord` station daemon
@@ -233,19 +234,14 @@ PhosphorNet is in MVP / public-alpha preparation. The core loop works today:
 - trusted-client rendering of declarative JSON UI
 - Lua doors as the default embedded runtime
 - stdio command doors for Python or other languages, with optional Podman isolation
-- optional `phosphor-actiond` delegation for fixed, per-door-allowlisted host commands
+- optional `phosphor-actiond` delegation for fixed host commands authorized by both exact rule ID and door ID
 - SQLite-backed scoped state
 - bundled lobby, profile, chat, forum, admin, strategy demo, and action demo doors
 - station and door access controls, including admin-only and invite-only modes
 
-Current limitations:
-
-- the switchboard is only a scaffold
-- only `open_door` transitions are implemented end-to-end
-- rooms are currently implicit per door
-- presence is live and in-memory
-- reconnects create a fresh session; brief drops may reopen the last safe door, but scroll position and input drafts are not restored
-- the Lua sandbox provides configurable hardening, not complete hostile-code isolation
+The trusted client never executes door code or passes node-provided terminal
+escape sequences through to the terminal. Door runtimes remain server-side, and
+host access is available only through explicitly configured action rules.
 
 ## Architecture
 
@@ -256,7 +252,7 @@ PhosphorNet currently has four command-line programs:
 | `phosphor` | Trusted terminal client. Renders station chrome and remote door UI locally. |
 | `phosphord` | Station daemon. Hosts doors, authenticates passports, stores state, and serves WebSocket sessions. |
 | `phosphor-actiond` | Optional Unix-host daemon for fixed, per-door-allowlisted commands requested through typed effects. |
-| `switchboard` | Early relay/rendezvous scaffold. Currently health-checkable, not full federation. |
+| `switchboard` | Experimental foundation for optional native relay and rendezvous support. |
 
 High-level flow:
 
@@ -383,7 +379,7 @@ Door state is scoped as:
 | Scope | Meaning |
 |---|---|
 | `user` | Per-door, per-user state. |
-| `room` | Per-door, per-room state. Current MVP rooms are implicit per door. |
+| `room` | Per-door shared state. Each door currently provides one shared interaction scope. |
 | `global` | Per-door station-global state. Writes require admin/sysop authority. |
 
 State operations are applied atomically. If a batch contains an invalid or unauthorized operation, none of it is committed.
@@ -571,7 +567,7 @@ cmd/
   phosphor/       terminal client
   phosphord/      station daemon
   phosphor-actiond/ allowlisted host-action daemon
-  switchboard/    relay/rendezvous scaffold
+  switchboard/    experimental relay/rendezvous support
 internal/
   client/         Bubble Tea client and local renderer
   config/         TOML config loading and validation
@@ -596,37 +592,24 @@ migrations/       SQLite schema migrations
 docs/             architecture, setup, configuration, runtime, and authoring docs
 ```
 
-## Switchboard Scaffold
+## Experimental Switchboard
 
-The current switchboard command is available as a health-checkable scaffold:
+Stations support direct WSS connections over local networks, private VPNs, and
+operator-managed Internet routing. The optional `switchboard` command currently
+provides a health-checkable foundation for native relay and rendezvous support:
 
 ```bash
 go run ./cmd/switchboard serve --listen :7710
 curl http://127.0.0.1:7710/healthz
 ```
 
-It does not yet provide the full relay, directory, or federation behavior described in the broader architecture direction.
+It currently exposes the health endpoint used for deployment and integration
+work. It is not required for direct station connections.
 
 ## Roadmap
 
-Near-term public-alpha priorities:
-
-- polish the terminal UX
-- improve the admin console
-- add better station/home customization
-- continue hardening manifest, runtime, and event boundaries
-- tighten documentation around MVP limits
-- add richer door components where they clearly improve real applications
-
-Later directions:
-
-- full switchboard / relay behavior
-- richer room model
-- stronger capability permissions
-- more durable presence and social state
-- browser/mobile clients
-- door distribution/signing story
-- terminal canvas/media components for graphs, images, and game-like doors
+Active development priorities are maintained in the single authoritative
+[PhosphorNet roadmap](docs/PhosphorNet_roadmap.md).
 
 ## License
 

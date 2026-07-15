@@ -17,7 +17,7 @@ Client renders. Node thinks. Doors define behavior.
 
 ## Choose A Runtime
 
-Use Lua for new MVP doors by default:
+Use Lua for new doors by default:
 
 - embedded in `phosphord`
 - small and script-like
@@ -30,7 +30,7 @@ Use Python when:
 - a richer script benefits from Python syntax or libraries
 - you explicitly set `runtime = "stdio"` with a command or Podman image in the manifest
 
-Do not make each door a web server for the MVP. Doors are invoked by `phosphord` through the runtime contract.
+Do not make each door a web server. Doors are invoked by `phosphord` through the runtime contract.
 
 ## Door Directory
 
@@ -165,7 +165,7 @@ default = "terminal-native public square"
 
 The manifest declares the schema and defaults. Station admins edit live values from the Station Admin door, and `phosphord` stores those edits in SQLite-backed node state. The manifest file is not rewritten.
 
-Supported MVP setting types:
+Supported setting types:
 
 | Type | Use |
 |---|---|
@@ -315,9 +315,9 @@ Supported lifecycle names:
 | `update` | Handle a client event. |
 | `on_join` | A session enters the door room. |
 | `on_leave` | A session leaves the door room. |
-| `tick` | Future node-driven time progression. |
+| `tick` | Reserved lifecycle name; the node does not currently schedule it. |
 
-MVP rooms are implicit per door. A session entering a door joins that door's room.
+Each door currently provides one shared interaction scope. A session entering a door joins that scope.
 
 ## Runtime Context
 
@@ -355,7 +355,7 @@ visits = int(ctx.state.get("visit_count", 0))
 
 ## UI Components
 
-Available MVP components:
+Available protocol v1 components:
 
 | Component | Lua helper | Python helper |
 |---|---|---|
@@ -679,10 +679,9 @@ user
 
 Current broadcast behavior re-renders matching live sessions after shared state changes.
 
-Current transition behavior is partial:
-
-- `open_door` transitions already work and are applied by `phosphord`.
-- Other declared transition kinds are still future work and should not be treated as fully implemented.
+Protocol version 1 supports `open_door` transitions, which are applied by
+`phosphord`. The other declared transition values are reserved and doors must
+not emit them.
 
 Host actions are fixed commands owned by the station operator and executed by the separate `phosphor-actiond` process. A door requests a rule by ID; it never supplies executable or argument text.
 
@@ -814,7 +813,7 @@ For Lua doors, keep the script small enough to inspect and exercise through the 
 
 ## Content Patterns
 
-Good MVP doors:
+Good doors:
 
 - lobby or welcome station
 - shared chat room

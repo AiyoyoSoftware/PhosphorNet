@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide documents the current configuration files used by `phosphor`, `phosphord`, doors, and the switchboard scaffold.
+This guide documents the current configuration files used by `phosphor`, `phosphord`, doors, and the experimental `switchboard` command.
 
 Configuration is intentionally plain TOML where possible. Secrets such as passport private keys and node private keys should be treated as private local files.
 
@@ -502,7 +502,7 @@ label = "Station tagline"
 default = "terminal-native public square"
 ```
 
-Supported MVP setting types:
+Supported setting types:
 
 | Type | Meaning |
 |---|---|
@@ -616,9 +616,11 @@ The Station Admin door can inspect scoped state summaries by door, scope, scope 
 
 `phosphord serve` logs the absolute database path and SQLite schema version on startup. See `docs/PhosphorNet_database_lifecycle.md` for backup, restore, migration, and deletion expectations.
 
-## Switchboard Scaffold
+## Experimental Switchboard
 
-The current `switchboard` command is a health-checkable relay/rendezvous scaffold:
+Direct WSS station connections do not require `switchboard`. The optional
+command currently provides a health-checkable foundation for native relay and
+rendezvous support:
 
 ```bash
 go run ./cmd/switchboard serve --listen :7710

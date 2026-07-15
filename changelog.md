@@ -1,5 +1,25 @@
 # changelog.md
 
+## 2026-07-15 - Homelab Positioning And Roadmap Consolidation
+
+- Repositioned the README and architecture overview around PhosphorNet's primary
+  use as a safe, terminal-native homelab control surface, while retaining the
+  bundled community doors as reference applications for the multi-user model.
+- Replaced the broad todo and historical MVP implementation plan with
+  `docs/PhosphorNet_roadmap.md`, the single authoritative source for active and
+  planned work.
+- Removed resolved implementation history, speculative architecture
+  questionnaires, duplicate test follow-ups, and stale phase checklists from
+  current-behavior documentation.
+- Reframed current runtime, transition, presence, interaction-scope,
+  switchboard, database, and moderation boundaries as precise shipped behavior
+  instead of generalized incomplete-work language.
+- Updated `AGENTS.md` so coding agents use the current-behavior docs, changelog,
+  and authoritative roadmap consistently.
+- Updated the companion `PhosphorNet.org` homepage, about page, and docs index
+  to use homelab-first current-release copy and link only to the authoritative
+  roadmap.
+
 ## 2026-07-14 - phosphor-actiond Host Action Delegation
 
 - Added the separate `phosphor-actiond` executable with strict TOML rule loading, fixed absolute command argv, explicit per-rule door allowlists, a minimal configured environment, JSON stdin, per-rule deadlines, bounded stdout/stderr, Linux process-group termination, and a versioned Unix-socket JSON protocol.

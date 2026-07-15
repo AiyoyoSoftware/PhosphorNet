@@ -26,9 +26,9 @@ Basic public-station moderation is in scope:
 - publish a maintenance or incident notice
 - rate-limit abusive behavior
 - inspect recent abuse-relevant activity
-- leave room for an appeal or unban path later
+- support explicit unban/unmute actions and operator moderation notes
 
-Advanced social systems remain out of scope for MVP:
+Advanced social systems are outside the local station moderation contract:
 
 - global reputation
 - cross-station ban federation
@@ -49,7 +49,7 @@ Display names are not moderation identities. They are mutable local profile data
 
 ## Primitive Set
 
-| Primitive | Owner | MVP behavior | Current status |
+| Primitive | Owner | Current behavior | Status |
 |---|---|---|---|
 | Ban key | `phosphord` station policy | Deny future auth/open access for a public key and disconnect active sessions when applied. | Implemented as node-owned station policy through `ban_key` / `unban_key`. |
 | Mute key | `phosphord` station policy plus door cooperation | Keep the user admitted but reject generic write-like events while allowing navigation; expose `ctx.permissions.muted` to doors. | Implemented as node-owned station policy through `mute_key` / `unmute_key`. |
@@ -59,7 +59,7 @@ Display names are not moderation identities. They are mutable local profile data
 | Maintenance notice | `phosphord` station policy and notifications | Broadcast or display station-level notice text and maintenance mode state. | Implemented through station notices, maintenance mode, and notifications. |
 | Rate-limit user | `phosphord` session/event policy | Bound event and open-door abuse by public key and session. | Implemented as per-user event/open-door limits through `set_user_rate_limit`. |
 | Inspect recent activity | `phosphord` event/audit stream | Show recent auth, admin, moderation, door-open, error, and rate-limit events with key/fingerprint context. | Implemented as in-memory station events in Station Admin. Durable audit policy remains separate work. |
-| Appeal/unban path | Operator process, later product feature | Record reason, expiration, and operator notes so a ban/mute can be reviewed or lifted. | Partially implemented with unban/unmute and moderation notes; user-facing appeals remain deferred. |
+| Review/unban path | Operator process | Record operator notes and explicitly unban or unmute a key after review. | Implemented through unban/unmute and moderation notes; any user contact path is station policy. |
 
 ## Policy Shape
 
@@ -118,7 +118,7 @@ Node-owned admin ops use explicit names rather than overloading roles:
 
 These operations require an admin/sysop role and the dedicated `admin:moderate_users` capability.
 
-The existing `set_user_role` operation should not be used as a ban system. A future `banned` role can exist for display or compatibility, but enforcement should remain an explicit denylist.
+The existing `set_user_role` operation is not a ban system. Enforcement remains an explicit denylist.
 
 ## Door Responsibilities
 
@@ -150,7 +150,10 @@ The first useful inspection view should answer:
 - Which admin changed moderation policy?
 - When did the event happen?
 
-The current in-memory event log is useful for live operation, but public-station moderation eventually needs a durable audit policy with retention limits and privacy rules. That belongs with the broader audit logging work, not with door state.
+The in-memory event log supports live operation. Security and operator mutations
+also flow into the durable SQLite audit trail, with optional bounded JSONL
+mirroring and configured retention. Audit history is node-owned rather than
+ordinary door state.
 
 ## Appeal And Unban
 
@@ -161,16 +164,11 @@ Appeal and unban can stay lightweight:
 - operator notes should be possible before building user-facing appeals
 - public stations may document an out-of-band contact path
 
-No MVP feature should imply cross-station appeal rights or global account recovery.
+No station feature implies cross-station appeal rights or global account recovery.
 
-## Implementation Order
+## Current Implementation
 
-Recommended order:
-
-1. Node-owned ban and mute policy in station policy. Done.
-2. `ban_key`, `unban_key`, `mute_key`, and `unmute_key` admin ops with `admin:moderate_users`. Done.
-3. Ban enforcement during authentication and door opening, with active-session disconnect on ban. Done.
-4. `ctx.permissions.muted` in runtime context plus generic rejection of muted write-like events. Done.
-5. Station Admin controls and recent activity filters for moderation review. Basic controls and recent events are done.
-6. Per-user event/open-door rate-limit overrides. Done.
-7. Durable audit retention and richer appeal workflow. Still future work.
+`phosphord` owns ban, unban, mute, unmute, per-user rate-limit, and moderation-note
+operations. Station Admin exposes the controls, enforcement occurs during auth,
+door access, and event handling, and security/operator mutations are recorded in
+the durable audit trail described by the runtime and database documentation.

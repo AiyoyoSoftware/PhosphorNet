@@ -2,7 +2,9 @@
 
 ## 1. Concept
 
-PhosphorNet is a terminal-native peer/node application platform inspired by BBSes, old online services, and personal-computer networking.
+PhosphorNet is a self-hosted, terminal-native platform for safe homelab control
+surfaces and other interactive station-hosted tools. Its station and door model
+is inspired by BBSes, old online services, and personal-computer networking.
 
 Every user can run a node. Every node can host doors. A user connects to any reachable node using a dedicated TUI client. The node sends a declarative JSON UI contract over WebSocket. The client renders that UI locally and sends back scoped events such as menu actions, form submissions, and approved key events.
 
@@ -60,9 +62,9 @@ Technical docs may still use “app” where clarity matters, but user-facing UI
 
 ### 3.1 Product Goals
 
-- Create a modern BBS-like network where computers feel like places again.
-- Allow any person to host a node: public, private, secret, local, or community-oriented.
-- Support server-side doors such as chat, boards, games, dashboards, tools, and small social spaces.
+- Give homelab operators focused remote interfaces without distributing shell access or building a browser application for every tool.
+- Allow any person to host a station: private, local, public, or community-oriented.
+- Support server-side doors such as dashboards, maintenance tools, logs, chat, boards, and games.
 - Use a consistent TUI client rather than arbitrary terminal output.
 - Make identity portable across nodes using public-key authentication.
 - Keep the system small, understandable, inspectable, and self-hostable.
@@ -75,31 +77,15 @@ Technical docs may still use “app” where clarity matters, but user-facing UI
 - WebSocket transport for client-to-node sessions.
 - Declarative JSON UI protocol.
 - Ed25519 challenge-response authentication.
-- SQLite-backed node state for MVP.
-- Optional open-source relay/switchboard for NAT traversal and reachability.
+- SQLite-backed node state.
+- Direct encrypted station connections, with an experimental open-source relay/switchboard path for additional reachability.
 
-## 4. Non-Goals for MVP
+## 4. Product Boundaries
 
-The MVP should not attempt to implement the whole future network.
-
-Out of scope for MVP:
-
-- DHT discovery.
-- Full federation.
-- Offline mail delivery.
-- Public door marketplace.
-- Local execution of downloaded doors.
-- Arbitrary client-side scripting.
-- Binary protocol optimization.
-- Rich permissions system.
-- Mobile client.
-- Browser client.
-- Cloudflare deployment.
-- End-to-end encrypted relayed streams.
-- Advanced moderation and reputation systems.
-- Complex file sharing.
-
-These can be added later once the core loop works.
+The current architecture deliberately excludes arbitrary client-side scripting,
+local execution of downloaded doors, raw terminal escape passthrough, implicit
+host authority, and general shell access. The protocol remains small, semantic,
+typed, and inspectable rather than becoming a browser or generic remote DOM.
 
 Basic public-station survival primitives are not the same as advanced moderation. Local ban, mute, content hide/delete, door freeze, maintenance notice, per-user rate limiting, and recent activity inspection are defined separately in `docs/PhosphorNet_public_station_moderation.md`.
 
@@ -129,7 +115,7 @@ Basic public-station survival primitives are not the same as advanced moderation
 │  render/event protocol      │
 └───────┬────────────────┬───┘
         │                │
-        │ Unix socket    │ optional later
+        │ Unix socket    │ experimental
         │ + JSON         │
         ▼                ▼
 ┌────────────────────┐  ┌────────────────────────────┐
@@ -137,7 +123,7 @@ Basic public-station survival primitives are not the same as advanced moderation
 │ fixed argv rules   │  │  relay / rendezvous        │
 │ door allowlists    │  │  node registration         │
 │ bounded execution │  │  frame forwarding          │
-└────────────────────┘  │  optional directory later  │
+└────────────────────┘  │  health endpoint today     │
                         └────────────────────────────┘
 ```
 
@@ -181,7 +167,7 @@ Responsibilities:
 - Run embedded Lua doors by default and stdio doors either as explicit `mode = "host"` trusted commands or Podman-isolated image processes when configured.
 - Persist door and system state in SQLite.
 - Receive client events and dispatch them to door sessions.
-- Send render trees, notifications, errors, and later patches.
+- Send render trees, notifications, and typed errors.
 - Optionally connect to switchboard relays.
 
 A node can be:
@@ -212,25 +198,14 @@ Authorization is intentionally two-layered. `phosphord` requires the door manife
 
 ## 6.4 switchboard
 
-`switchboard` is an optional relay/rendezvous service. It exists to make private or NATed nodes reachable without requiring everyone to expose inbound ports.
+`switchboard` is the experimental foundation for optional native relay and
+rendezvous support. The current command exposes a health endpoint; direct WSS
+station connections over LANs, private VPNs, or operator-managed Internet
+routing do not require it.
 
-Responsibilities for MVP relay:
-
-- Accept outbound node registrations.
-- Authenticate registered nodes by Ed25519 challenge-response.
-- Maintain active node_id → WebSocket session mappings.
-- Allow clients or nodes to request a connection to a registered node.
-- Forward frames between connections.
-
-The relay should not own identity, user accounts, door logic, or source-of-truth data.
-
-Later capabilities may include:
-
-- Rendezvous only.
-- Live traffic forwarding.
-- Encrypted offline mailbox.
-- Public node directory.
-- Signed package mirroring.
+Any relay implementation must remain transport-only. It must not own passport
+identity, user accounts, door logic, or station source-of-truth data. Active
+relay development is tracked only in `docs/PhosphorNet_roadmap.md`.
 
 ## 7. Identity Model
 
@@ -270,7 +245,7 @@ Node key: ed25519:node_xyz...
 Trust this node? [Yes] [No]
 ```
 
-If the node key changes later:
+If the node key changes:
 
 ```text
 WARNING: node identity changed.
@@ -346,23 +321,7 @@ admin
 
 Capabilities are a third layer. Door access controls who can open the door; capabilities control which privileged effects the door may ask `phosphord` to apply.
 
-Future access modes:
-
-```text
-listed
-  Visible in directory, login required.
-
-unlisted
-  Only accessible if address is known.
-
-local_only
-  LAN or localhost only.
-
-mutual_trust
-  Both nodes/users must trust each other.
-```
-
-Current MVP session roles:
+Current session roles:
 
 ```text
 member
@@ -372,19 +331,19 @@ sysop
 
 `member` is the ordinary admitted-user role. `admin` can operate station policy through admin-capable doors. `sysop` is the highest local operator role. Guest-like display state may exist for users without a configured profile name, but `guest` is not a current station-policy role.
 
-Future role model may include guest, moderator, door_author, banned, service_account, relay_peer, etc.
-
 Public-station moderation should not be implemented primarily as roles. Bans, mutes, and rate-limit overrides are local station policy keyed by passport public key; roles describe authority after admission.
 
 ## 9. Door / App Model
 
-Doors are server-side apps hosted by a node. For MVP, doors are written in embedded Lua by default, while Python and other command-style doors remain supported through the stdio runtime.
+Doors are server-side apps hosted by a node. Doors use embedded Lua by default,
+while Python and other command-style doors are supported through the generic
+stdio runtime.
 
 The client never receives Lua or Python code. The client only receives JSON UI contracts.
 
 ## 9.1 Door Lifecycle
 
-Minimum door interface:
+Door lifecycle interface:
 
 ```python
 async def init(ctx):
@@ -397,7 +356,7 @@ async def update(ctx, event):
     return await view(ctx)
 ```
 
-Possible future hooks:
+Additional supported lifecycle hooks:
 
 ```python
 async def tick(ctx):
@@ -447,7 +406,7 @@ max_execution_ms = 5000
 
 ## 9.3 Door Runtime
 
-For MVP, the default runtime is embedded Lua through `gopher-lua`:
+The default runtime is embedded Lua through `gopher-lua`:
 
 ```text
 phosphord ↔ embedded Lua VM
@@ -466,13 +425,6 @@ phosphord ↔ stdio host command or Podman image
 
 Both Lua and stdio implement the same lifecycle names and response effects. Host direct execution and Podman are stdio launch profiles, not separate runtime protocols. Doors should never bypass the runtime contract to reach the client directly.
 
-Future runtime options:
-
-- Long-lived Python worker process.
-- Per-door process pool.
-- WASM/Pyodide runtime for Cloudflare-like portability.
-- Named/reusable container isolation profiles.
-
 ## 9.4 Door State
 
 Doors access state through a controlled SDK, not arbitrary filesystem/database access.
@@ -485,7 +437,7 @@ ctx.store.set("room", "game", game)
 ctx.effects.broadcast({"kind": "action", "target": "game", "action": "changed"}, scope="room")
 ```
 
-MVP can store door state as JSON blobs in SQLite.
+Door state is stored as scoped JSON values in SQLite.
 
 ## 10. JSON UI Protocol
 
@@ -517,16 +469,6 @@ door_list
 render
 notify
 error
-```
-
-Future:
-
-```text
-patch
-permission_request
-file_offer
-link_offer
-presence_update
 ```
 
 ## 10.2 Session Flow
@@ -601,7 +543,7 @@ short live-session window, and rejects stale render revisions for submit-like
 events (`action`, `select`, and `submit`). Raw key/focus-style traffic still
 carries the revision but is not rejected only because a newer render has arrived.
 
-## 10.5 Component Set for MVP
+## 10.5 Protocol v1 Component Set
 
 ```text
 screen
@@ -631,13 +573,16 @@ These are enough for:
 - Turn-based games.
 - Strategy demo.
 
-Content-bearing components may carry narrowly scoped presentation hints under `style`. For MVP this is limited to trusted-client-rendered solid and gradient backgrounds on `screen`, `panel`, and `log`; leaf controls such as buttons do not accept remote visual styling.
+Content-bearing components may carry narrowly scoped presentation hints under
+`style`. Protocol v1 limits these to trusted-client-rendered solid and gradient
+backgrounds on `screen`, `panel`, and `log`; leaf controls such as buttons do
+not accept remote visual styling.
 
 The JSON UI contract is schema-owned by `internal/protocol`. The formal v1 schema is `internal/protocol/schema/json-ui-v1.schema.json`, with golden protocol fixtures in `internal/protocol/testdata/ui_contract/v1` and client render fixtures in `internal/client/testdata/ui_contract/v1/render`. These fixtures are the compatibility corpus for Go structs, Lua/Python SDK helpers, invalid cases, size limits, and trusted-client rendering expectations.
 
 Clients advertise their current compatibility in the pre-auth `hello`: client version, runtime protocol version, JSON UI schema version, supported components, supported style features, supported event kinds, and render limits. `phosphord` rejects incompatible clients before auth completes instead of sending UI trees outside the client's declared contract.
 
-## 10.6 Event Types for MVP
+## 10.6 Protocol v1 Event Types
 
 ```text
 action
@@ -730,9 +675,8 @@ The client must never print node-provided strings directly to the terminal.
 
 All remote text is treated as plain text and rendered by the client.
 
-No raw ANSI component should exist in MVP.
-
-If ANSI art support is added later, it must parse a tiny safe subset and reject OSC, clipboard, cursor movement, hyperlinks, and terminal-specific control sequences.
+Protocol v1 has no raw ANSI component. Nodes cannot send terminal control
+sequences through the trusted renderer.
 
 ## 11.5 DoS Protections
 
@@ -769,7 +713,7 @@ Nodes never receive:
 
 ## 12. Storage Model
 
-MVP SQLite tables:
+Current SQLite tables include:
 
 ```sql
 CREATE TABLE users (
@@ -804,13 +748,13 @@ CREATE TABLE messages (
 
 This is intentionally simple. Doors can store JSON values through the SDK.
 
-## 13. MVP Doors
+## 13. Bundled Reference Doors
 
 ## 13.1 Lobby
 
 Purpose:
 
-- Proves node connection and door navigation.
+- Demonstrates node connection and door navigation.
 
 Features:
 
@@ -823,7 +767,7 @@ Features:
 
 Purpose:
 
-- Proves real-time broadcast and multi-client sessions.
+- Demonstrates real-time broadcast and multi-client sessions.
 
 Features:
 
@@ -836,7 +780,7 @@ Features:
 
 Purpose:
 
-- Proves custom server-side door logic, grids, key events, and game state.
+- Demonstrates custom server-side door logic, grids, key events, and game state.
 
 Features:
 
@@ -848,71 +792,9 @@ Features:
 - End turn action.
 - Event log.
 
-This is not meant to be a full game. It is the proof that the platform can host games.
+This is a compact reference game rather than a full game.
 
-## 14. MVP Implementation Plan
-
-## 14.1 Phase 1: Direct Client ↔ Node
-
-```text
-[ ] Define protocol JSON structs.
-[ ] Build phosphord WebSocket server.
-[ ] Build phosphor WebSocket connector.
-[ ] Render a static JSON screen.
-[ ] Map terminal input to events.
-[ ] Send action events back to phosphord.
-```
-
-## 14.2 Phase 2: Identity
-
-```text
-[ ] Generate Ed25519 passport.
-[ ] Store passport locally.
-[ ] Show public key / short fingerprint.
-[ ] Implement node challenge.
-[ ] Implement client signature.
-[ ] Implement node verification.
-[ ] Add known node key pinning.
-```
-
-## 14.3 Phase 3: Door Runtime
-
-```text
-[ ] Add door registry.
-[ ] Add manifest.toml.
-[ ] Add hardcoded lobby door.
-[ ] Add embedded Lua runtime.
-[ ] Add configurable Lua sandbox profiles.
-[x] Add generic stdio command runtime.
-[ ] Add embedded PhosphorNet Lua SDK table.
-[ ] Add PhosphorNet Python SDK.
-[ ] Dispatch events to doors.
-[ ] Return render trees from doors.
-```
-
-## 14.4 Phase 4: State and Demo Doors
-
-```text
-[ ] Add SQLite.
-[ ] Add door_state API.
-[ ] Implement chat door.
-[ ] Implement multi-client broadcast.
-[ ] Implement strategy demo door.
-[ ] Add grid component to client.
-```
-
-## 14.5 Phase 5: Relay / Switchboard
-
-```text
-[ ] Implement switchboard WebSocket server.
-[ ] Register node with relay.
-[ ] Authenticate node registration.
-[ ] Connect client to registered node through relay.
-[ ] Forward frames.
-[ ] Add relay address to node config.
-```
-
-## 15. Example Commands
+## 14. Example Commands
 
 Initialize a node:
 
@@ -944,37 +826,11 @@ Connect directly:
 phosphor connect wss://localhost:7707
 ```
 
-Connect through relay later:
-
-```bash
-phosphor connect station://localbox@relay.phosphor.net
-```
-
-## 16. Future Architecture
-
-After MVP, likely next features:
-
-- Invite links for secret nodes.
-- Public directory nodes.
-- Offline mailbox through relay.
-- Signed profile documents.
-- Signed door packages.
-- File shelves.
-- Door install/mirror/fork flow.
-- Node-to-node sync.
-- End-to-end encrypted relay streams.
-- DHT discovery as optional backend.
-- Cloudflare Lite Node.
-- Richer door permissions.
-- Patch/diff UI updates.
-- ANSI art safe subset.
-- Local door execution sandbox for trusted doors.
-
-## 17. Design Mantra
+## 15. Design Mantra
 
 > Computers should be places again.
 
-The MVP should stay focused on the core loop:
+The architecture stays focused on the core loop:
 
 ```text
 connect → authenticate → open door → render JSON UI → send event → update state → render again

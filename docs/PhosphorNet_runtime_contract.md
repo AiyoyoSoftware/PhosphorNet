@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the canonical MVP contract between `phosphord` and door runtimes.
+This document defines the canonical protocol version 1 contract between `phosphord` and door runtimes.
 
 The default runtime backend is embedded Lua through `gopher-lua`, and Python remains available as a stdio command when a door packages or imports the Python SDK itself. This contract is interpreter-agnostic: every runtime implements the same request and response envelope rather than adding runtime-specific message shapes.
 
@@ -140,7 +140,7 @@ global
 Scope meaning:
 
 - `user`: per-door, per-user state.
-- `room`: per-door, per-room state. MVP rooms are implicit per door.
+- `room`: per-door shared state. Each door currently provides one shared interaction scope.
 - `global`: per-door node-global state. Writes require an admin/sysop role and `state:global:write`.
 
 State values are door-owned JSON objects. The contract around state mutation is typed through `state_ops`.
@@ -244,10 +244,9 @@ room
 
 Transitions describe navigation intent. The trusted client and node still own session boundaries.
 
-Current MVP transition support:
-
-- `open_door` is implemented and lets one door hand off to another.
-- `close_door` and `room` remain declared contract shapes, but are not yet full end-to-end MVP behavior.
+Protocol version 1 supports `open_door`, which lets one door hand off to
+another. `close_door` and `room` are reserved contract values and must not be
+emitted by doors.
 
 ### Host Actions
 
@@ -326,7 +325,7 @@ Current admin op authority:
 | `set_user_rate_limit` | `admin` or `sysop` | `admin:moderate_users` | per-user station rate limits |
 | `record_moderation_note` | `admin` or `sysop` | `admin:moderate_users` | operator moderation notes |
 
-`clear_event_log` currently reuses `admin:read_logs`; a later cleanup may split destructive log clearing into its own capability if that boundary needs to be sharper.
+`clear_event_log` uses `admin:read_logs`; this is the current protocol authority boundary.
 
 Station policy is stored in node-owned SQLite state. Bundled Station Admin is only the UI that submits these operations.
 
@@ -348,7 +347,7 @@ ctx.nav.handle(event, default)
 
 UI helper buttons emit semantic actions such as `nav:push:posts`, `nav:back`, and `nav:reset:home`. The door handles those actions during `update` and returns the next declarative UI tree.
 
-## Current MVP Implementation Notes
+## Current Implementation Notes
 
 - Lua uses this envelope through `internal/runtime/lua_invoker.go`.
 - Lua doors receive a `ctx` table with `state`, `states`, `store`, `nav`, `effects`, and an embedded `phosphornet.ui` SDK table.

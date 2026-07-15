@@ -46,9 +46,8 @@ Recommended order:
 
 Do not load every doc by default.
 
-Do not treat the MVP roadmap as the active backlog.
-
-Check `docs/PhosphorNet_todo.md` before assuming a planned feature is already implemented.
+Check `docs/PhosphorNet_roadmap.md` for planned work. The README and subsystem
+documentation describe current behavior; the changelog records completed work.
 
 ## Source Of Truth By Task
 
@@ -57,8 +56,8 @@ Use these docs first:
 - Architecture and product boundaries:
   `docs/PhosphorNet_architecture.md`
   `docs/PhosphorNet_technology_stack.md`
-- Current loose ends, partial implementations, and doc drift:
-  `docs/PhosphorNet_todo.md`
+- Planned project work:
+  `docs/PhosphorNet_roadmap.md`
 - Door runtime contract and door authoring:
   `docs/PhosphorNet_runtime_contract.md`
   `docs/PhosphorNet_authoring_doors.md`
@@ -68,10 +67,8 @@ Use these docs first:
 - User-visible behavior and copy:
   `docs/PhosphorNet_user_guide.md`
   `README.md`
-- Historical planning context only:
-  `docs/PhosphorNet_MVP_implementation_roadmap.md`
-
-Treat the roadmap as a planning artifact and architectural reference, not as the single live backlog.
+Treat `docs/PhosphorNet_roadmap.md` as the single live backlog. Do not create a
+second roadmap in descriptive documentation.
 
 ## Repo Navigation Map
 
@@ -95,7 +92,7 @@ Use this map before opening more files:
 - Identity, signatures, known-node trust:
   `internal/identity/`
   `internal/knownnodes/`
-- Relay scaffold:
+- Experimental relay support:
   `cmd/switchboard/`
   `internal/relay/`
 - Python door SDK:
@@ -136,18 +133,18 @@ When implementing or reviewing changes, preserve these rules:
 - Host commands must flow through typed action effects and `phosphor-actiond`; require both `action:<rule-id>` in the door manifest and an explicit door ID in the action rule.
 - Keep the protocol small, typed, and strict. Do not turn it into a mini browser or generic DOM.
 
-## Current MVP Reality Checks
+## Current Release Reality Checks
 
 These are easy places to make wrong assumptions. Verify against them before changing behavior:
 
 - Lua is the default door runtime. Python is supported through the generic stdio runtime, but new statements should not describe Python as a privileged runtime model.
 - Transport defaults to encrypted `wss://`, but node identity still comes from signed Ed25519 challenge verification plus known-node pinning.
 - Manifest `capabilities = [...]` is the enforced capability policy. Legacy `permissions = [...]` is deprecated and only mapped for compatibility.
-- `open_door` transitions work. Other declared transition kinds are still reserved future work.
-- Presence is live and in-memory, not durable.
-- The room model is implicit per door.
-- `switchboard` is still scaffold-level, not a complete relay network.
-- The file-level MVP roadmap is partly historical. Use `docs/PhosphorNet_todo.md` for the current loose-end backlog.
+- `open_door` is the supported transition. Other declared transition values are reserved.
+- Presence represents live connected sessions and is intentionally in-memory.
+- Each door currently provides one shared interaction scope.
+- Direct WSS station connections are supported. `switchboard` is an experimental foundation for optional native relay support.
+- `docs/PhosphorNet_roadmap.md` is the only authoritative source for planned work.
 
 ## Implementation Rules By Task Type
 
@@ -183,36 +180,34 @@ For door work:
 
 For feature work:
 
-- Check MVP priorities and non-goals before implementing.
-- Keep changes aligned with the documented MVP unless the user explicitly asks to change direction.
+- Check the current product focus and `docs/PhosphorNet_roadmap.md` before implementing.
+- Keep changes aligned with the homelab-first product direction unless the user explicitly asks to change direction.
 
 For bug fixes:
 
 - Reproduce or trace the smallest likely path first.
 - Do not read the whole repo to fix a localized issue unless the local path proves insufficient.
 
-## MVP Priorities And Non-Goals
+## Product Focus And Non-Goals
 
-The MVP should prove:
+The core platform provides:
 
 - trusted client rendering
 - Ed25519 authentication
 - JSON UI protocol
 - node-hosted doors
 - SQLite-backed state
-- at least these doors: `lobby`, `chat`, `strategy_demo`
+- explicitly authorized host actions through `phosphor-actiond`
+- bundled reference doors including `lobby`, `chat`, and `strategy_demo`
 
-Avoid pulling the project toward these unless the user explicitly requests them:
+The primary product focus is safe terminal-native homelab control surfaces.
+Community doors demonstrate the multi-user platform but are not the only or
+primary adoption story.
 
-- DHT discovery
-- full federation
-- offline mail
-- public door marketplace
-- browser client
-- mobile client
+Preserve these deliberate non-goals unless the user explicitly changes product direction:
+
 - arbitrary client-side scripting
 - local execution of downloaded doors
-- advanced permissions systems
 - Cloudflare-first architecture
 - WASM-first runtime design
 - gRPC-first transport design

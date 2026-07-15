@@ -2,7 +2,9 @@
 
 ## 1. Stack Summary
 
-PhosphorNet should use a small, inspectable, cross-platform stack that matches the product philosophy: modern internals, old-network simplicity, and low operational friction.
+PhosphorNet uses a small, inspectable, cross-platform stack that matches the
+product philosophy: modern internals, old-network simplicity, and low
+operational friction.
 
 Core stack:
 
@@ -54,31 +56,29 @@ SQLite remembers.
 | Client CLI/TUI | Go | Single binary, fast startup, cross-platform, reliable terminal support |
 | TUI framework | Bubble Tea | Event loop maps naturally to JSON UI and event messages |
 | Styling | Lip Gloss | Panels, borders, colors, old-school terminal chrome |
-| Widgets | Bubbles | Text input, textarea, list, viewport, spinner, etc. |
 | Markdown rendering | Glamour | Useful for boards, docs, help screens, and posts |
 | Node daemon | Go | Concurrency, networking, static binaries, low operational friction |
 | Host action daemon | Go + Unix socket JSON | Keeps explicitly configured host command execution outside `phosphord` and independently policy-checked |
 | Relay | Go | WebSocket forwarding/rendezvous is a good fit for Go |
 | Door language | Lua default, stdio commands supported | Lua keeps common doors embedded in `phosphord`; stdio keeps Python and other command-style doors possible |
 | Door runtime | Embedded `gopher-lua`, plus generic stdio backend with optional Podman isolation | Lua gives a mostly standalone node with configurable sandboxing; stdio speaks the same JSON envelope over stdin/stdout whether launched directly or through a container wrapper |
-| Transport | WebSocket | Proxy-friendly, easy to inspect, possible Cloudflare compatibility later |
-| Protocol format | JSON | Human-readable, easy in Go, Lua, and Python, ideal for early iteration |
-| Database | SQLite | Perfect for personal/community nodes and single-file persistence |
+| Transport | WebSocket | Proxy-friendly and easy to inspect |
+| Protocol format | JSON | Human-readable and interoperable across Go, Lua, Python, and other stdio runtimes |
+| Database | SQLite | Single-file persistence with no separate database service |
 | Config | TOML | Human-editable node and door manifests |
 | Identity | Ed25519 | SSH-like public-key identity, small keys, fast signatures |
-| Migrations | Goose | Simple SQL migration management |
+| Schema lifecycle | Versioned SQL files plus runtime bootstrap | Keeps schema history inspectable while startup enforces the current schema |
 | Logging | Go `log/slog` | Standard library, structured logging, no extra dependency |
 
 ## 3. Go Dependencies
 
 ## 3.1 TUI Client
 
-Recommended libraries:
+Current libraries:
 
 ```text
 github.com/charmbracelet/bubbletea
 github.com/charmbracelet/lipgloss
-github.com/charmbracelet/bubbles
 github.com/charmbracelet/glamour
 ```
 
@@ -91,21 +91,19 @@ bubbletea
 lipgloss
   Layout, borders, colors, panels, and visual styling.
 
-bubbles
-  Reusable terminal widgets: input, textarea, list, viewport, spinner.
-
 glamour
   Markdown rendering for posts, help screens, node docs, and door descriptions.
 ```
 
-`glamour` is optional for the earliest prototype, but it fits the product well. Boards, manuals, public station pages, and help documents should look good in the terminal.
+Interactive component state is owned by the trusted client. Glamour renders the
+protocol's Markdown component locally.
 
 ## 3.2 WebSocket
 
-Recommended library:
+Current library:
 
 ```text
-nhooyr.io/websocket
+github.com/coder/websocket
 ```
 
 Reasons:
@@ -115,17 +113,15 @@ Reasons:
 - Modern API.
 - Works well with Go HTTP servers.
 
-MVP use cases:
+Current session paths:
 
 ```text
 phosphor ↔ phosphord
-phosphor ↔ switchboard
-switchboard ↔ phosphord
 ```
 
 ## 3.3 CLI Framework
 
-Recommended library:
+Current library:
 
 ```text
 github.com/spf13/cobra
@@ -151,7 +147,7 @@ Cobra is not exciting, but it is reliable and familiar.
 
 ## 3.4 Config
 
-Recommended library:
+Current library:
 
 ```text
 github.com/pelletier/go-toml/v2
@@ -166,17 +162,16 @@ Config files:
 ./doors/chat/manifest.toml
 ```
 
-TOML should be used for:
+TOML is used for:
 
 - Node configuration.
 - Door manifests.
 - Known nodes.
-- Relay configuration.
 - Development profiles.
 
 ## 3.5 SQLite
 
-Recommended first choice:
+Current driver:
 
 ```text
 modernc.org/sqlite
@@ -188,38 +183,22 @@ Reason:
 - Easier cross-compilation.
 - Better fit for single-binary distribution.
 
-Alternative:
-
-```text
-github.com/mattn/go-sqlite3
-```
-
-Tradeoff:
-
-- More battle-tested.
-- Requires CGO.
-- Cross-compilation is more annoying.
-
-For PhosphorNet's “small appliance / easy binary” feel, start with `modernc.org/sqlite` unless it causes problems.
+The pure-Go driver avoids CGO and supports straightforward cross-compilation.
 
 ## 3.6 Migrations
 
-Recommended library:
-
-```text
-github.com/pressly/goose/v3
-```
-
-Use plain SQL migrations:
+Schema history is documented as plain SQL:
 
 ```text
 migrations/
   001_init.sql
-  002_door_state.sql
-  003_messages.sql
+  002_scoped_state.sql
+  003_user_last_seen.sql
+  004_user_profiles.sql
 ```
 
-Keep migrations simple and readable.
+Runtime bootstrap in `internal/storage` enforces the current schema and reports
+the SQLite schema version.
 
 ## 3.7 Logging
 
@@ -242,14 +221,8 @@ crypto/sha256
 encoding/base64
 ```
 
-For later encrypted passport storage:
-
-```text
-golang.org/x/crypto/argon2
-golang.org/x/crypto/chacha20poly1305
-```
-
-MVP may start with file-permissions-only passport storage, but the design should leave room for passphrase encryption.
+Passports are currently protected by local filesystem permissions. Encrypted
+at-rest passport storage is tracked in `docs/PhosphorNet_roadmap.md`.
 
 ## 4. Door Runtime Stack
 
@@ -345,19 +318,12 @@ async def update(ctx, event):
     return await view(ctx)
 ```
 
-The SDK should initially have very few dependencies.
-
-Potential future dependency:
-
-```text
-pydantic
-```
-
-But avoid it for MVP unless schema validation inside Python becomes painful. Door authoring should feel script-like and lightweight.
+The SDK has no required third-party Python dependencies. Door authoring remains
+script-like and lightweight.
 
 ## 4.3 Door Runtime Model
 
-MVP runtime:
+Current runtime:
 
 ```text
 phosphord invokes embedded Lua doors in-process by default.
@@ -366,15 +332,13 @@ phosphord ↔ stdio door command
             canonical JSON response on stdout
 ```
 
-The runtime should support request/response first:
+The runtime uses a bounded request/response contract:
 
 ```text
 phosphord invokes door method.
 door returns render tree.
 phosphord sends render tree to phosphor.
 ```
-
-Later, it can support long-lived async messages for broadcasts, timers, and background tasks.
 
 Host actions are a separate boundary from door runtime invocation:
 
@@ -443,7 +407,7 @@ Example response from a stdio door:
 }
 ```
 
-For MVP, this can be enough.
+This is the canonical stdio request/response boundary.
 
 ## 5. Protocol Layer
 
@@ -479,16 +443,6 @@ door_list
 render
 notify
 error
-```
-
-Future:
-
-```text
-patch
-permission_request
-file_offer
-link_offer
-presence_update
 ```
 
 ## 5.2 UI Node Shape
@@ -532,7 +486,7 @@ Allowed:
 }
 ```
 
-Forbidden for MVP:
+Forbidden by the client trust boundary:
 
 ```json
 {
@@ -601,54 +555,30 @@ phosphornet/
 
 ## 7. Process Model
 
-## 7.1 Direct MVP
+## 7.1 Direct Station Path
 
 ```text
 phosphor  ──WebSocket──>  phosphord  ──embedded VM──>  Lua door
                                       └─stdin/stdout──> Python door
 ```
 
-## 7.2 Relay Path Later
+Direct WSS connections are the supported deployment path over local networks,
+private VPNs, and operator-managed Internet routing. The optional
+`switchboard` command is currently an experimental health-checkable foundation;
+relay implementation work is tracked in `docs/PhosphorNet_roadmap.md`.
 
-```text
-phosphor  ──WebSocket──>  switchboard  ──WebSocket──>  phosphord
-```
-
-## 7.3 Future Node-to-Node Path
-
-```text
-phosphord A  ──switchboard frames──>  phosphord B
-```
-
-## 8. What Not To Use for MVP
+## 8. Deliberate Technology Exclusions
 
 ## 8.1 gRPC
 
-Do not use gRPC for MVP.
+PhosphorNet does not use gRPC.
 
 JSON over WebSocket and JSON over stdin/stdout are enough. The system should be inspectable, hackable, and easy to debug.
 
-Possible later use:
-
-- Internal node runtime API.
-- Higher-performance relay transport.
-- Typed admin APIs.
-
 ## 8.2 WASM
 
-Do not use WASM for MVP.
-
-WASM is attractive later for sandboxing and Cloudflare-like portability, but it will slow the first implementation down.
-
-Future runtime options:
-
-```text
-WASM
-JavaScript
-native trusted doors
-```
-
-Initial runtime is:
+PhosphorNet does not use WASM as a privileged runtime model. The supported
+runtime model is:
 
 ```text
 embedded Lua + strict configurable sandboxing
@@ -657,50 +587,34 @@ generic stdio command runtime for Python and other external processes
 
 ## 8.3 Cloudflare-First Design
 
-Do not design the whole MVP around Cloudflare Workers.
+PhosphorNet is self-hosted and is not designed around Cloudflare Workers.
+WebSocket and JSON remain compatible with conventional proxies without making
+a particular cloud provider part of the architecture.
 
-WebSocket + JSON keeps the door open for:
+## 9. Dependency Reference
+
+The current direct Go dependencies are declared in `go.mod` and include:
 
 ```text
-Cloudflare Worker switchboard
-Cloudflare Durable Object relay rooms
-Cloudflare Lite Node
+github.com/charmbracelet/bubbletea
+github.com/charmbracelet/glamour
+github.com/charmbracelet/lipgloss
+github.com/coder/websocket
+github.com/pelletier/go-toml/v2
+github.com/spf13/cobra
+github.com/yuin/gopher-lua
+modernc.org/sqlite
 ```
 
-But forcing Python doors into Cloudflare too early will distort the architecture.
-
-## 9. MVP Dependency Install
-
-Go dependencies:
-
-```bash
-go get github.com/charmbracelet/bubbletea
-go get github.com/charmbracelet/lipgloss
-go get github.com/charmbracelet/bubbles
-go get github.com/charmbracelet/glamour
-go get github.com/spf13/cobra
-go get nhooyr.io/websocket
-go get github.com/pelletier/go-toml/v2
-go get modernc.org/sqlite
-go get github.com/pressly/goose/v3
-```
-
-Potential later crypto dependencies:
-
-```bash
-go get golang.org/x/crypto/argon2
-go get golang.org/x/crypto/chacha20poly1305
-```
-
-Python SDK should start with no required third-party dependencies.
+The Python SDK has no required third-party dependencies.
 
 ## 10. Version Targets
 
-Recommended initial version targets:
+Current version targets:
 
 ```text
 Go:
-  1.23+
+  1.26+
 
 Python:
   3.11+
@@ -716,7 +630,7 @@ Door SDK:
   phosphornet Python SDK v0
 ```
 
-Go 1.23+ is a practical baseline for modern standard-library support and current tooling.
+Go 1.26+ is the module baseline for modern standard-library support and current tooling.
 
 Python 3.11+ is a good baseline for optional Python doors that need async support, performance, and availability.
 
@@ -746,31 +660,21 @@ Distribution goals:
 - Python required only on machines hosting Python doors.
 - Users connecting to remote nodes only need `phosphor`.
 
-Possible packages later:
-
-```text
-phosphornet-client
-phosphornet-node
-phosphornet-switchboard
-phosphornet-sdk-python
-```
-
-## 12. Final Recommended MVP Stack
+## 12. Current Stack
 
 ```text
 Language:
-  Go 1.23+ for binaries
+  Go 1.26+ for binaries
   Lua for default doors through gopher-lua
   Python 3.11+ for optional doors
 
 Client:
   Bubble Tea
   Lip Gloss
-  Bubbles
   Glamour
 
 Transport:
-  WebSocket via nhooyr.io/websocket
+  WebSocket via github.com/coder/websocket
   JSON messages
 
 Node:
@@ -780,17 +684,17 @@ Node:
   embedded gopher-lua runtime
   generic stdio runtime
 
-Relay:
-  Go WebSocket frame forwarder
+Experimental switchboard:
+  Go health endpoint and CLI foundation
 
 Identity:
   Ed25519 using Go stdlib
   known-node key pinning
-  later passport encryption with x/crypto
+  local filesystem permission protection for passport files
 
 Persistence:
   SQLite
-  Goose migrations
+  versioned SQL history plus runtime schema bootstrap
 
 Packaging:
   Single Go binaries
@@ -798,4 +702,6 @@ Packaging:
   Python SDK vendored or installed locally for Python doors
 ```
 
-This stack is intentionally boring in the right places. The weirdness should be in the experience, the doors, the community model, and the feeling of logging into strange little computers — not in the infrastructure.
+This stack is intentionally boring in the right places. The character belongs
+in useful homelab doors and the feeling of entering a machine with a clear
+purpose—not in infrastructure complexity.

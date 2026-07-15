@@ -4,12 +4,12 @@
 
 This guide gets PhosphorNet installed or running from a fresh checkout.
 
-PhosphorNet currently runs as three command-line programs:
+PhosphorNet provides four command-line programs:
 
 - `phosphor`: trusted terminal client.
 - `phosphord`: node daemon that hosts doors.
 - `phosphor-actiond`: optional allowlisted host-action daemon for doors.
-- `switchboard`: relay/rendezvous scaffold.
+- `switchboard`: experimental foundation for optional native relay/rendezvous support.
 
 For local development, you usually run `phosphord` in one terminal and `phosphor` in another.
 
@@ -226,7 +226,7 @@ Expected response:
 ok
 ```
 
-The switchboard scaffold has the same style of health endpoint:
+The experimental switchboard command has the same style of health endpoint:
 
 ```bash
 go run ./cmd/switchboard serve --listen :7710

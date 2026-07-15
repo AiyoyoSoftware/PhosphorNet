@@ -361,7 +361,7 @@ ctx.effects:transition(kind, door_id?, room_id?)
 ```
 
 Declared kinds are `open_door`, `close_door`, and `room`. Only `open_door` is
-implemented end to end in the current MVP and requires `transition:open_door`.
+implemented end to end in protocol version 1 and requires `transition:open_door`.
 
 ```lua
 ctx.effects:transition("open_door", "chat")
@@ -421,7 +421,8 @@ The legacy `unsafe` profile name is accepted for configuration compatibility but
 is normalized to the strict profile.
 
 Execution is bounded by node/manifest timeout, memory, call-stack, and registry
-settings. The sandbox is an MVP-grade language sandbox, not a general host
+settings. This embedded language sandbox is intended for station-installed Lua
+doors; use the Podman-backed stdio runtime when a door requires a separate host
 isolation boundary.
 
 ## Complete Example
