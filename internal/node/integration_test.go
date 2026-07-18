@@ -740,6 +740,8 @@ func TestIntegrationAdminReloadManifestsPublishesNewDoorList(t *testing.T) {
 	if !doorListContains(refreshedDoors, "news") {
 		t.Fatalf("refreshed member door list = %#v, want reloaded news door", refreshedDoors.Doors)
 	}
+	_ = readIntegrationDoorList(t, ctx, adminConn)
+	_ = readIntegrationRender(t, ctx, adminConn)
 }
 
 func TestIntegrationRoomNotificationFanout(t *testing.T) {

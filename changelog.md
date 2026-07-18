@@ -1,5 +1,14 @@
 # changelog.md
 
+## 2026-07-18 - SQLite Contention And Integration Teardown
+
+- Configured every pooled SQLite connection with a bounded busy timeout so
+  transient concurrent door-state and audit writes wait instead of surfacing
+  `SQLITE_BUSY` to live sessions.
+- Added storage regression coverage for concurrent writers and made the
+  manifest-reload integration test wait for the initiating admin response
+  before closing its database.
+
 ## 2026-07-15 - Homelab Positioning And Roadmap Consolidation
 
 - Repositioned the README and architecture overview around PhosphorNet's primary

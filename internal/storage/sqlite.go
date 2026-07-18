@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -69,6 +70,8 @@ var stateKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
 const CurrentSchemaVersion = 5
 
+const sqliteBusyTimeout = 5 * time.Second
+
 func OpenSQLite(path string) (*Store, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -84,7 +87,7 @@ func OpenSQLite(path string) (*Store, error) {
 		created = true
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", sqliteDSN(absPath))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -94,6 +97,17 @@ func OpenSQLite(path string) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func sqliteDSN(path string) string {
+	dsn := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}
+	query := dsn.Query()
+	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", sqliteBusyTimeout.Milliseconds()))
+	dsn.RawQuery = query.Encode()
+	return dsn.String()
 }
 
 func (s *Store) Close() error {

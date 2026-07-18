@@ -5,9 +5,51 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"phosphornet/internal/protocol"
 )
+
+func TestSQLiteBusyTimeoutWaitsForConcurrentWriter(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "node.db")
+	first, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatalf("OpenSQLite(first) error = %v", err)
+	}
+	defer first.Close()
+	second, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatalf("OpenSQLite(second) error = %v", err)
+	}
+	defer second.Close()
+
+	tx, err := first.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx() error = %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO users (public_key, name, role, first_seen, last_seen)
+VALUES (?, ?, ?, ?, ?);`, "writer", "Writer", "member", "now", "now"); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("insert locking row error = %v", err)
+	}
+	released := make(chan struct{})
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = tx.Rollback()
+		close(released)
+	}()
+
+	if _, err := second.AppendAuditEvent(ctx, AuditEvent{
+		Timestamp: "2026-07-18T00:00:00Z",
+		Action:    "test.concurrent_write",
+		Result:    "success",
+	}); err != nil {
+		t.Fatalf("AppendAuditEvent() during concurrent write error = %v", err)
+	}
+	<-released
+}
 
 func TestScopedStateOpsAreAtomicAcrossScopes(t *testing.T) {
 	ctx := context.Background()
