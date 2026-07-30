@@ -2,6 +2,8 @@
 
 **PhosphorNet is a self-hosted, terminal-native platform for safe homelab control surfaces.**
 
+Official site: [PhosphorNet.org](https://phosphornet.org/).
+
 Use it to build status pages, dashboards, bounded log viewers, maintenance tools, and other remote interfaces without issuing shell accounts or creating a browser application for every task.
 
 Users connect to a PhosphorNet station with the `phosphor` terminal client and a portable Ed25519 passport identity. Door code runs on the station. The station sends declarative JSON UI trees over WebSockets. The trusted client renders that UI locally and sends back structured events such as button presses, menu choices, form submissions, and approved key input.

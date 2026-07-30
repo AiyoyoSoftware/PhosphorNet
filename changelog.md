@@ -1,5 +1,10 @@
 # changelog.md
 
+## 2026-07-30 - README Official Site Link
+
+- Added the official [PhosphorNet.org](https://phosphornet.org/) link to the
+  README introduction.
+
 ## 2026-07-18 - SQLite Contention And Integration Teardown
 
 - Configured every pooled SQLite connection with a bounded busy timeout so
